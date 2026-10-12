@@ -893,6 +893,7 @@ static partial class Curriculum
     public static readonly Lesson[] ReactCourseLessons = BuildReactCourseLessons();
     public static readonly Lesson[] ReactLiteCourseLessons = BuildReactLiteCourseLessons();
     public static readonly Lesson[] WebBasicsLessons = BuildWebBasicsLessons();
+    public static readonly Lesson[] TailwindLessons = BuildTailwindLessons();
     public static readonly Lesson[] SQLiteLessons = BuildSQLiteLessons();
     public static readonly Lesson[] LinuxCliLessons = BuildLinuxCliLessons();
     public static readonly Lesson[] KubernetesLessons = BuildKubernetesLessons();
@@ -900,6 +901,7 @@ static partial class Curriculum
     public static readonly Dictionary<string, Lesson> BySlug = ComputingLessons
         .Concat(ElectricalEngineeringLessons)
         .Concat(WebBasicsLessons)
+        .Concat(TailwindLessons)
         .Concat(SQLiteLessons)
         .Concat(LinuxCliLessons)
         .Concat(KubernetesLessons)
@@ -916,6 +918,7 @@ static partial class Curriculum
     public static readonly Course ElectricalEngineeringCourse = BuildCourse("electrical-engineering-foundations", "Electrical Engineering Foundations", "electrical-engineering", "EE Foundations", "Circuits · measurement · components · signals", "2026-09-25", ElectricalEngineeringLessons);
     public static readonly Course GitCliCourse = BuildCourse("git-cli", "Git CLI", "git", "Git CLI", "Repositories · branches · remotes · recovery", "2026-09-26", GitCliLessons);
     public static readonly Course WebBasicsCourse = BuildCourse("web-development-basics", "Web Development Basics 2026", "web", "Web Platform 2026", "HTML · CSS · JavaScript · TypeScript · HTTP", "2026-09-26", WebBasicsLessons);
+    public static readonly Course TailwindCourse = BuildCourse("tailwind-css", "Tailwind CSS 2026: from utilities to Pathway", "tailwind", "Tailwind CSS v4", "Vite · Responsive UI · Design tokens", "2026-10-12", TailwindLessons);
     public static readonly Course SQLiteCourse = BuildCourse("sqlite", "SQLite", "sqlite", "SQLite 3.53.4", "sqlite3 CLI · DB Browser for SQLite 3.13.1", "2026-09-26", SQLiteLessons);
     public static readonly Course LinuxCliCourse = BuildCourse("linux-cli-bash-vim", "Linux CLI / Bash / Vim", "linux", "GNU/Linux CLI · Bash 5.3", "GNU coreutils · Vim 9.2", "2026-09-26", LinuxCliLessons);
     public static readonly Course KubernetesCourse = BuildCourse("kubernetes", "Kubernetes: foundations to internals", "kubernetes", "Kubernetes 1.35", "kubectl · containerd · CNI · CSI", "2026-09-26", KubernetesLessons);
@@ -932,6 +935,7 @@ static partial class Curriculum
         [ElectricalEngineeringCourse.Id] = ElectricalEngineeringCourse,
         [GitCliCourse.Id] = GitCliCourse,
         [WebBasicsCourse.Id] = WebBasicsCourse,
+        [TailwindCourse.Id] = TailwindCourse,
         [SQLiteCourse.Id] = SQLiteCourse,
         [LinuxCliCourse.Id] = LinuxCliCourse,
         [KubernetesCourse.Id] = KubernetesCourse,
@@ -949,6 +953,7 @@ static partial class Curriculum
         new(ElectricalEngineeringCourse.Id, ElectricalEngineeringCourse.Title, ElectricalEngineeringCourse.LanguageId, ElectricalEngineeringCourse.LanguageVersion, ElectricalEngineeringCourse.FrameworkVersion, true),
         new(GitCliCourse.Id, GitCliCourse.Title, GitCliCourse.LanguageId, GitCliCourse.LanguageVersion, GitCliCourse.FrameworkVersion, true),
         new(WebBasicsCourse.Id, WebBasicsCourse.Title, WebBasicsCourse.LanguageId, WebBasicsCourse.LanguageVersion, WebBasicsCourse.FrameworkVersion, true),
+        new(TailwindCourse.Id, TailwindCourse.Title, TailwindCourse.LanguageId, TailwindCourse.LanguageVersion, TailwindCourse.FrameworkVersion, true),
         new(SQLiteCourse.Id, SQLiteCourse.Title, SQLiteCourse.LanguageId, SQLiteCourse.LanguageVersion, SQLiteCourse.FrameworkVersion, true),
         new(LinuxCliCourse.Id, LinuxCliCourse.Title, LinuxCliCourse.LanguageId, LinuxCliCourse.LanguageVersion, LinuxCliCourse.FrameworkVersion, true),
         new(KubernetesCourse.Id, KubernetesCourse.Title, KubernetesCourse.LanguageId, KubernetesCourse.LanguageVersion, KubernetesCourse.FrameworkVersion, true),
