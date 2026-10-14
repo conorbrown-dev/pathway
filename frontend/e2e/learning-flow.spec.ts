@@ -369,7 +369,7 @@ test('onboarding selects the Rust systems track', async ({ page }) => {
   await expect(page.getByText('Selected: Rust Systems: zero to staff')).toBeVisible()
   await page.getByRole('button', { name: 'Continue as guest' }).click()
   await expect(page).toHaveTitle('Pathway — Learn Rust')
-  await expect(page.getByRole('heading', { name: 'Install Rust and use Cargo', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Why Rust? Strengths, trade-offs, installation, and first project', level: 1 })).toBeVisible()
   await expect.poll(() => page.evaluate(() => localStorage.getItem('pathway-course-id'))).toBe('rust-systems')
 })
 
@@ -648,7 +648,7 @@ test('loads the selected Rust track for a guest learner', async ({ page }) => {
   await page.goto('/')
 
   await expect(page).toHaveTitle('Pathway — Learn Rust')
-  await expect(page.getByRole('heading', { name: 'Install Rust and use Cargo', level: 1 })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Why Rust? Strengths, trade-offs, installation, and first project', level: 1 })).toBeVisible()
 })
 
 test('unlocks resilient HTTP clients after the preceding Python lesson passes', async ({ page }) => {
