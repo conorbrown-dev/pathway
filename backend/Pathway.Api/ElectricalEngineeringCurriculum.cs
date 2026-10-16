@@ -3,7 +3,7 @@ static partial class Curriculum
     private static readonly VersionStamp ElectricalFoundationsDocs = new(
         "Electrical engineering",
         "Foundations",
-        "2026-09-25",
+        "2026-10-16",
         "https://www.allaboutcircuits.com/textbook/direct-current/");
 
     private static Exercise ChoiceExercise(string title, string prompt, string correct, Choice[] choices, string hint, params string[] tests) =>
@@ -124,8 +124,8 @@ static partial class Curriculum
             ["kHz"] = 1000d
         };
 
-        return NormalizeLessons(
-        [
+        var coreLessons = new Lesson[]
+        {
             new(
                 "ee-charge-voltage-current",
                 "Electrical fundamentals",
@@ -329,6 +329,7 @@ static partial class Curriculum
                 CircuitExercise("Troubleshooting capstone", "Diagnose why the LED is dark using the virtual multimeter and the circuit's expected behavior.", "Verify the supply and node voltage, then ask what fault can leave the LED anode at the full supply voltage while no light is produced.", "A healthy supply is present and the LED anode remains at 5 V. With R1 intact and no current flowing, an open D1 best explains the dark LED in this scenario.", TroubleshootingLab()),
                 null,
                 ElectricalFoundationsDocs)
-        ]);
+        };
+        return NormalizeLessons(coreLessons.Select(EnrichElectricalLesson).Concat(BuildPracticalElectricalLessons()));
     }
 }
