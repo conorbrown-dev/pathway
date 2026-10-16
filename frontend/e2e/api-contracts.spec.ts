@@ -316,7 +316,18 @@ test.describe('public API contract', () => {
     const course = await courseResponse.json() as Course
     const summaries = orderedLessons(course)
     expect(summaries[0]).toMatchObject({ slug: 'ee-charge-voltage-current', order: 1 })
-    expect(summaries.at(-1)).toMatchObject({ slug: 'ee-engineering-habits', order: 16 })
+    expect(summaries).toHaveLength(31)
+    expect(summaries.at(-1)).toMatchObject({ slug: 'ee-final-project-check', order: 31 })
+    expect(summaries.map(lesson => lesson.slug)).toEqual(expect.arrayContaining([
+      'ee-physical-quantities-lab',
+      'ee-resistors-real-designs',
+      'ee-breadboard-led-project',
+      'ee-capacitor-use-cases',
+      'ee-diode-circuit-applications',
+      'ee-two-wire-encoded-buttons',
+      'ee-custom-wall-control-project',
+      'ee-controller-isolated-relay-project',
+    ]))
 
     const lessonResponse = await request.get(`${apiBaseUrl}/api/lessons/ee-ohms-law`)
     await expect(lessonResponse).toBeOK()
@@ -334,7 +345,7 @@ test.describe('public API contract', () => {
     const headers = { 'X-Learner-Id': learnerId }
     const exact = await request.post(`${apiBaseUrl}/api/submissions/validate`, { headers, data: { lessonSlug: 'ee-ohms-law', answer: '36.36', unit: 'mA' } })
     await expect(exact).toBeOK()
-    await expect(exact.json()).resolves.toMatchObject({ passed: true, nextLessonSlug: 'ee-unit-conversion', workedSolution: expect.stringContaining('36.36 mA') })
+    await expect(exact.json()).resolves.toMatchObject({ passed: true, nextLessonSlug: 'ee-adapter-current-capacity', workedSolution: expect.stringContaining('36.36 mA') })
 
     const withinTolerance = await request.post(`${apiBaseUrl}/api/submissions/validate`, { headers, data: { lessonSlug: 'ee-ohms-law', answer: '36.4', unit: 'mA' } })
     await expect(withinTolerance).toBeOK()
@@ -347,6 +358,22 @@ test.describe('public API contract', () => {
     const outsideTolerance = await request.post(`${apiBaseUrl}/api/submissions/validate`, { headers, data: { lessonSlug: 'ee-ohms-law', answer: '40', unit: 'mA' } })
     await expect(outsideTolerance).toBeOK()
     await expect(outsideTolerance.json()).resolves.toMatchObject({ passed: false, nextLessonSlug: null })
+  })
+
+  test('serves component labs, a two-wire controller investigation, and a final safety assessment', async ({ request }) => {
+    const [capacitor, diode, encoded, project, assessment] = await Promise.all([
+      request.get(`${apiBaseUrl}/api/lessons/ee-capacitor-use-cases`),
+      request.get(`${apiBaseUrl}/api/lessons/ee-diode-circuit-applications`),
+      request.get(`${apiBaseUrl}/api/lessons/ee-two-wire-encoded-buttons`),
+      request.get(`${apiBaseUrl}/api/lessons/ee-custom-wall-control-project`),
+      request.get(`${apiBaseUrl}/api/lessons/ee-final-project-check`),
+    ])
+    for (const response of [capacitor, diode, encoded, project, assessment]) await expect(response).toBeOK()
+    await expect(capacitor.json()).resolves.toMatchObject({ body: expect.stringContaining('decoupling'), exercise: { kind: 'Presentation' } })
+    await expect(diode.json()).resolves.toMatchObject({ body: expect.stringContaining('flyback'), exercise: { kind: 'Presentation' } })
+    await expect(encoded.json()).resolves.toMatchObject({ body: expect.stringContaining('does not prove a specific circuit type') })
+    await expect(project.json()).resolves.toMatchObject({ body: expect.stringContaining('photoelectric safety sensors') })
+    await expect(assessment.json()).resolves.toMatchObject({ exercise: { kind: 'MultipleChoice', correctAnswer: 'uncertain' } })
   })
 
   test('serves reusable circuit labs without exposing validator answers and validates measurements', async ({ request }) => {
@@ -449,7 +476,7 @@ test.describe('public API contract', () => {
     await expect(correct).toBeOK()
     await expect(correct.json()).resolves.toMatchObject({
       passed: true,
-      nextLessonSlug: null,
+      nextLessonSlug: 'ee-custom-wall-control-project',
       workedSolution: expect.stringContaining('open D1'),
     })
   })
