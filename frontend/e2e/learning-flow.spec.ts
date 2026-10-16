@@ -271,7 +271,9 @@ test('renders numeric EE exercises, accepts tolerance, unlocks the next lesson, 
     localStorage.setItem('pathway-learner-id', 'ee-numeric-ui-guest')
     localStorage.setItem('pathway-completed-lessons:guest:ee-numeric-ui-guest', JSON.stringify([
       'ee-charge-voltage-current',
+      'ee-physical-quantities-lab',
       'ee-resistance-circuits',
+      'ee-dc-vs-ac-motion',
     ]))
   })
   await page.goto('/')
@@ -300,10 +302,14 @@ test('runs an interactive EE circuit measurement lab and unlocks progression', a
     localStorage.setItem('pathway-learner-id', 'ee-circuit-ui-guest')
     localStorage.setItem('pathway-completed-lessons:guest:ee-circuit-ui-guest', JSON.stringify([
       'ee-charge-voltage-current',
+      'ee-physical-quantities-lab',
       'ee-resistance-circuits',
+      'ee-dc-vs-ac-motion',
       'ee-ohms-law',
+      'ee-adapter-current-capacity',
       'ee-unit-conversion',
       'ee-series-parallel',
+      'ee-resistors-real-designs',
     ]))
   })
   await page.goto('/')
@@ -330,6 +336,18 @@ test('completes the EE troubleshooting capstone with a measurement and diagnosis
     localStorage.setItem('pathway-learner-id', 'ee-capstone-ui-guest')
     localStorage.setItem('pathway-completed-lessons:guest:ee-capstone-ui-guest', JSON.stringify([
       'ee-charge-voltage-current',
+      'ee-physical-quantities-lab',
+      'ee-dc-vs-ac-motion',
+      'ee-adapter-current-capacity',
+      'ee-resistors-real-designs',
+      'ee-breadboard-led-project',
+      'ee-meter-component-identification',
+      'ee-foundations-module-assessment',
+      'ee-capacitor-use-cases',
+      'ee-switch-debounce-cap-project',
+      'ee-diode-circuit-applications',
+      'ee-component-selection-project',
+      'ee-two-wire-encoded-buttons',
       'ee-resistance-circuits',
       'ee-ohms-law',
       'ee-unit-conversion',
@@ -359,7 +377,7 @@ test('completes the EE troubleshooting capstone with a measurement and diagnosis
 
   await expect(page.getByText('Correct', { exact: true })).toBeVisible()
   await expect(page.getByText('A healthy supply is present and the LED anode remains at 5 V')).toBeVisible()
-  await expect(page.getByRole('button', { name: /Next lesson/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Next lesson/i })).toBeVisible()
 })
 
 test('onboarding selects the Rust systems track', async ({ page }) => {
