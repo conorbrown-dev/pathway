@@ -1821,6 +1821,7 @@ function snippetLanguage(lesson: Lesson, code = lesson.example): SnippetLanguage
   if (looksLikeJson(trimmed)) return "json";
   if (looksLikeFileTree(trimmed)) return "plaintext";
 
+  if (lesson.slug.startsWith("ee-")) return "plaintext";
   if (lesson.slug.startsWith("git-")) return "shell";
   if (lesson.slug.startsWith("linux-") || lesson.slug.startsWith("bash-")) return "shell";
   if (lesson.slug.startsWith("vim-")) return "plaintext";
@@ -1934,9 +1935,13 @@ function LessonContent({ lesson }: { lesson: Lesson }) {
           <strong>Key idea:</strong> {lesson.concept}
         </p>
       </div>
-      <p className="my-6 text-sm leading-relaxed text-[#454d47]">
-        {lesson.body}
-      </p>
+      <div className="my-6 space-y-4">
+        {lesson.body.split(/\n\s*\n/).map((paragraph, index) => (
+          <p key={index} className="whitespace-pre-line text-sm leading-relaxed text-[#454d47]">
+            {paragraph}
+          </p>
+        ))}
+      </div>
       <div className="overflow-hidden rounded-md bg-[#252b28] shadow-sm">
         <div className="bg-[#303735] px-4 py-2 font-mono text-[10px] text-[#bbc4bb]">
           {snippetLanguageLabel[language]}
