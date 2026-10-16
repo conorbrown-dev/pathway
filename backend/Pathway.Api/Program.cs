@@ -913,7 +913,7 @@ static partial class Curriculum
         .ToDictionary(lesson => lesson.Slug, StringComparer.Ordinal);
 
     public static readonly Course ComputingCourse = BuildCourse("computing-foundations", "Computing Foundations", "computing", "Core computing", "Machine · data · processes · OS", "2026-09-24", ComputingLessons);
-    public static readonly Course ElectricalEngineeringCourse = BuildCourse("electrical-engineering-foundations", "Electrical Engineering Foundations", "electrical-engineering", "EE Foundations", "Circuits · measurement · components · signals", "2026-09-25", ElectricalEngineeringLessons);
+    public static readonly Course ElectricalEngineeringCourse = BuildCourse("electrical-engineering-foundations", "Electrical Engineering Foundations", "electrical-engineering", "EE Foundations", "Circuits · measurement · components · practical builds", "2026-10-16", ElectricalEngineeringLessons);
     public static readonly Course GitCliCourse = BuildCourse("git-cli", "Git CLI", "git", "Git CLI", "Repositories · branches · remotes · recovery", "2026-09-26", GitCliLessons);
     public static readonly Course WebBasicsCourse = BuildCourse("web-development-basics", "Web Development Basics 2026", "web", "Web Platform 2026", "HTML · CSS · JavaScript · TypeScript · HTTP", "2026-09-26", WebBasicsLessons);
     public static readonly Course SQLiteCourse = BuildCourse("sqlite", "SQLite", "sqlite", "SQLite 3.53.4", "sqlite3 CLI · DB Browser for SQLite 3.13.1", "2026-09-26", SQLiteLessons);
