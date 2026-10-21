@@ -884,7 +884,7 @@ static partial class Curriculum
 
     // The language courses intentionally start at language/tooling concepts. Generic machine and
     // operating-system concepts now live in Computing Foundations instead of being repeated per language.
-    public static readonly Lesson[] CSharpCourseLessons = NormalizeLessons(Lessons.Skip(9).Concat(BuildModernArchitectureLessons()));
+    public static readonly Lesson[] CSharpCourseLessons = NormalizeLessons(Lessons.Skip(9).Select(lesson => lesson.Module == "Staff practice" ? lesson with { Order = lesson.Order + 1_000 } : lesson).Concat(BuildModernArchitectureLessons().Select(lesson => lesson with { Order = lesson.Order + 100 })));
     public static readonly Lesson[] PythonCourseLessons = NormalizeLessons(
         PythonAllLessons.Skip(9).Where(lesson => lesson.Slug != "python-http"));
     public static readonly Lesson[] RustCourseLessons = NormalizeLessons(RustLessons.Skip(5));
