@@ -884,7 +884,7 @@ static partial class Curriculum
 
     // The language courses intentionally start at language/tooling concepts. Generic machine and
     // operating-system concepts now live in Computing Foundations instead of being repeated per language.
-    public static readonly Lesson[] CSharpCourseLessons = NormalizeLessons(Lessons.Skip(9));
+    public static readonly Lesson[] CSharpCourseLessons = NormalizeLessons(Lessons.Skip(9).Select(lesson => lesson.Module == "Staff practice" ? lesson with { Order = lesson.Order + 1_000 } : lesson).Concat(BuildModernArchitectureLessons().Select(lesson => lesson with { Order = lesson.Order + 100 })));
     public static readonly Lesson[] PythonCourseLessons = NormalizeLessons(
         PythonAllLessons.Skip(9).Where(lesson => lesson.Slug != "python-http"));
     public static readonly Lesson[] RustCourseLessons = NormalizeLessons(RustLessons.Skip(5));
@@ -924,7 +924,7 @@ static partial class Curriculum
     public static readonly Course KubernetesCourse = BuildCourse("kubernetes", "Kubernetes: foundations to internals", "kubernetes", "Kubernetes 1.35", "kubectl · containerd · CNI · CSI", "2026-09-26", KubernetesLessons);
     public static readonly Course ReactCourse = BuildCourse("react-enterprise", "React 2026: enterprise applications", "react", "React 19.3 · TypeScript 6.0", "Vite 8.1 · React Router 8 · Tailwind CSS 4.3", "2026-09-26", ReactCourseLessons);
     public static readonly Course ReactLiteCourse = BuildCourse("react-lite", "React Lite 2026: your first admin dashboard", "react", "React 19.3 · TypeScript 6.0", "Vite 8.1 · React Router 8 · Tailwind CSS 4.3", "2026-09-26", ReactLiteCourseLessons);
-    public static readonly Course Course = BuildCourse("csharp-dotnet", "C# / .NET: zero to staff", "csharp", "C# 14", ".NET 10", "2026-09-24", CSharpCourseLessons);
+    public static readonly Course Course = BuildCourse("csharp-dotnet", "C# / .NET: zero to staff", "csharp", "C# 14", ".NET 10", "2026-10-21", CSharpCourseLessons);
     public static readonly Course PythonCourse = BuildCourse("python-web", "Python Web: zero to staff", "python", "Python 3.14", "FastAPI · Flask · Django", "2026-09-24", PythonCourseLessons);
     public static readonly Course RustCourse = BuildCourse("rust-systems", "Rust Systems: zero to staff", "rust", "Rust 1.97", "Edition 2024 · Tokio · Axum", "2026-09-24", RustCourseLessons);
     public static readonly Course ClaudeCourse = BuildCourse("claude-engineering", "Claude Engineering: Hooks", "claude", "Claude Code", "Hooks · Agent workflow automation", "2026-09-24", ClaudeLessons);
