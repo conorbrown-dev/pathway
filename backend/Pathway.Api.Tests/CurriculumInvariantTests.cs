@@ -111,4 +111,42 @@ public class CurriculumInvariantTests
             Assert.NotEqual(lesson.Subtitle, lesson.Concept);
         });
     }
+
+    [Theory]
+    [InlineData("rust-structs-enums")]
+    [InlineData("rust-traits-generics")]
+    public void Authored_Rust_lessons_replace_their_templates(string slug)
+    {
+        var lesson = Curriculum.BySlug[slug];
+        Assert.DoesNotContain("Apply it in a small project, explain the tradeoff", lesson.Body);
+        Assert.NotEqual(lesson.Subtitle, lesson.Concept);
+        Assert.Contains("```rust", lesson.Body);
+        Assert.Equal(ExerciseKind.Code, lesson.Exercise.Kind);
+        Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.StarterCode), $"{slug}: code exercise has no starter code.");
+        Assert.NotEmpty(lesson.Exercise.Requirements);
+    }
+
+    [Fact]
+    public void Every_Rust_code_exercise_has_a_sandbox_fixture()
+    {
+        // Production grades code only through the sandbox broker. A code lesson with no fixture
+        // can never be passed, which blocks the course for everyone (audit finding C3).
+        var evaluator = File.ReadAllText(FindRepositoryFile("sandbox-broker/src/evaluator.mjs"));
+        var missing = LessonsOf("rust-systems")
+            .Where(lesson => lesson.Exercise.Kind == ExerciseKind.Code)
+            .Where(lesson => !evaluator.Contains($"case '{lesson.Slug}':", StringComparison.Ordinal))
+            .Select(lesson => lesson.Slug)
+            .ToArray();
+        Assert.True(missing.Length == 0, $"Rust code exercises without a broker fixture: {string.Join(", ", missing)}");
+    }
+
+    private static string FindRepositoryFile(string relativePath)
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            var candidate = Path.Combine(directory.FullName, relativePath);
+            if (File.Exists(candidate)) return candidate;
+        }
+        throw new FileNotFoundException($"Could not find {relativePath} above {AppContext.BaseDirectory}.");
+    }
 }

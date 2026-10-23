@@ -514,6 +514,8 @@ static ValidationResult ValidateCode(Lesson lesson, string code)
         {
             "rust-hello-functions" => code.Contains("fn greet", StringComparison.Ordinal) && code.Contains("format!", StringComparison.Ordinal),
             "rust-ownership" => code.Contains("fn take_name", StringComparison.Ordinal) && code.Contains("String", StringComparison.Ordinal) && code.Contains(".len()", StringComparison.Ordinal),
+            "rust-structs-enums" => code.Contains("enum Enrollment", StringComparison.Ordinal) && code.Contains("fn accept", StringComparison.Ordinal) && code.Contains("fn complete_lesson", StringComparison.Ordinal) && code.Contains("fn summary", StringComparison.Ordinal) && code.Contains("match", StringComparison.Ordinal),
+            "rust-traits-generics" => code.Contains("trait Billable", StringComparison.Ordinal) && code.Contains("impl Billable for Seat", StringComparison.Ordinal) && code.Contains("impl Billable for Workspace", StringComparison.Ordinal) && code.Contains("dyn Billable", StringComparison.Ordinal),
             _ => false
         };
         return new ValidationResult(rustPassed, rustPassed ? 2 : 0, 2, rustPassed ? "All tests passed. Your Rust solution meets this lesson’s checks." : lesson.Exercise.Hint, rustPassed ? lesson.NextSlug : null, BuildCodeReview(lesson, code));
@@ -1155,6 +1157,8 @@ static partial class Curriculum
             Body = "## First principles\nUnsafe Rust permits specific operations the compiler cannot verify, including raw-pointer dereferences and calling unsafe functions. It does not disable all checks, and declaring a function unsafe is not a correctness proof.\n\n## Practical design\nFirst implement a checked byte parser in safe Rust. Then inspect a small foreign-function interface example: identify who allocates, who frees, allowed null pointers, buffer lengths, alignment, unwind behavior, and thread safety. Do not invent a safe wrapper without a written contract.\n\n## Deep review\nWrite a SAFETY comment for each unsafe block; document invariants that the caller and callee must maintain. Study Rustonomicon and Miri's limitations: testing can reveal bugs but does not prove soundness.\n\n## Exercise\nAudit the interface and explain how safe Rust callers could trigger undefined behavior if its wrapper violates a hidden invariant.",
             Exercise = new Exercise(ExerciseKind.Presentation, "Soundness checklist for unsafe boundaries", "Complete the independent lab before moving on.", ["Write and run your own Rust implementation.", "Record compiler errors and how you resolved them.", "Add tests for successful and failing inputs.", "Explain the underlying memory or OS mechanism in your own words."], null, null, [], "Use official Rust documentation and compiler messages; do not copy generated implementations.", [])
         };
+        // Authored lessons replace their templated versions (RustCurriculumDepth.cs).
+        result = result.Select(WithRustDepth).ToArray();
         return result;
     }
 
