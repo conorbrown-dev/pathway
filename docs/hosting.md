@@ -17,7 +17,7 @@ browser ──► pathway.orangecastle.net (Vercel project "pathway", Vite SPA)
 | Evaluator broker | Vercel `pathway-broker`, Container Runtime | `sandbox-broker/Dockerfile.vercel` | push to `main` |
 | Code sandboxes | Vercel Sandbox, images in `pathway-broker`'s Container Registry | `sandbox-broker/images/*/Dockerfile` | Sandbox images workflow on `main` |
 | Database | Neon `pathway` (`twilight-frog-83291776`), us-east-1, free plan | created via Vercel → Storage | n/a |
-| Sign-in | Auth0 tenant | dashboard configuration below | n/a |
+| Sign-in | Auth0 tenant `dev-rkpp04u8ylrlove1` (US), shared with other apps; Pathway users live in their own `Pathway-Users` connection | dashboard configuration below | n/a |
 
 Each Vercel project skips deployments when nothing in its own directory changed. The API and broker run in `iad1`, next to the Neon database.
 
@@ -72,16 +72,28 @@ Vite embeds these at build time; redeploy after changing them.
 
 ### Auth0
 
-1. **Application** → Create → *Single Page Application* named `Pathway`.
-   - Allowed Callback URLs, Allowed Logout URLs and Allowed Web Origins: `https://pathway.orangecastle.net, http://localhost:5173`.
-   - **Refresh Token Rotation**: on. Absolute expiration: on (for example 30 days). The SPA uses rotating refresh tokens so learners stay signed in across reloads without third-party cookies.
-2. **APIs** → Create → name `Pathway API`, identifier `https://api.pathway.orangecastle.net`, signing RS256.
-   - For mentor badges in the community area: enable **RBAC** and **Add Permissions in the Access Token**, add a permission `mentor`, and grant it to mentors. The API reads roles from the `permissions` claim (`AUTH_ROLE_CLAIM` overrides it).
-3. **Security**: keep Brute Force Protection on (the default). Under Authentication → Database → Password Policy, choose *Good* or stronger.
-4. **Email**: Auth0's built-in email provider is for testing. Before relying on password resets and verification mail, configure a provider. Resend is already installed on the Vercel account and offers SMTP.
-5. Optional **custom domain** (for example `auth.orangecastle.net`). It keeps sign-in on your own domain, and Auth0 requires credit-card verification for it on the free plan. If you add one, use it for `VITE_AUTH0_DOMAIN`, and use `https://<custom-domain>/` for `AUTH_AUTHORITY`, because tokens are then issued by the custom domain.
+Pathway shares the Auth0 tenant `dev-rkpp04u8ylrlove1.us.auth0.com` with other products, because the account is at its tenant limit. It is isolated by connection: Pathway accounts exist only in the `Pathway-Users` database, which no other application uses, and the Pathway application offers no other connection. If a tenant frees up, moving Pathway to its own tenant needs only these steps repeated there and the five variables updated.
 
-Signed-in learners are stored as `user:<Auth0 sub>` (for example `user:google-oauth2|123`); guests as `guest:<id>`.
+Current configuration:
+
+| Item | Value |
+| --- | --- |
+| Application | `Pathway`, Single Page Application, client ID `aTNi1OdbIWAahlq5t6z0rnwp2Dh9YCKX` |
+| Callback, logout and web-origin URLs | `https://pathway.orangecastle.net, http://localhost:5173` |
+| Refresh tokens | rotation on; 15-day idle and 30-day maximum lifetime |
+| Connections enabled for the app | `Pathway-Users` only (email + password). The tenant's shared `Username-Password-Authentication` and `google-oauth2` are switched **off** for Pathway |
+| API | `Pathway API`, identifier `https://api.pathway.orangecastle.net`, RS256 |
+| API settings | RBAC on, permissions added to the access token, offline access allowed; user-delegated access is per-app, granted to `Pathway` |
+| Permissions | `mentor`: grant it to mentors (User Management → Users → Permissions). The API reads roles from the `permissions` claim (`AUTH_ROLE_CLAIM` overrides it) |
+
+Keep these in mind when changing the tenant:
+
+- **Don't enable `Pathway-Users` for other applications**, and don't enable shared connections for Pathway. Either would merge Pathway's accounts with another product's.
+- **Brute-force protection** is on by default. Under Authentication → Database → `Pathway-Users` → Password Policy, choose *Good* or stronger.
+- **Email:** Auth0's built-in email provider is for testing. Before relying on password resets and verification mail, configure a provider (Resend is installed on the Vercel account and offers SMTP). Email settings are tenant-wide.
+- **Login page branding** (Branding → Universal Login) is tenant-wide, so it is shared with the other products.
+
+Signed-in learners are stored as `user:<Auth0 sub>` (for example `user:auth0|65f…`); guests as `guest:<id>`.
 
 ## Sandbox images
 
