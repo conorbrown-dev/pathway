@@ -586,7 +586,10 @@ record Module(string Id, string Title, string Level, IReadOnlyList<LessonSummary
 record LessonSummary(string Slug, string Title, int Order);
 record Lesson(string Slug, string Module, int Order, string Title, string Subtitle, string Concept, string Body, string Example, Exercise Exercise, string? NextSlug, VersionStamp Version);
 record VersionStamp(string Language, string Framework, string LastReviewed, string SourceUrl);
-record Exercise(ExerciseKind Kind, string Title, string Prompt, string[] Requirements, string? StarterCode, string? CorrectAnswer, Choice[] Choices, string Hint, string[] Tests, double? ExpectedNumeric = null, double? Tolerance = null, string? Unit = null, IReadOnlyDictionary<string, double>? UnitConversions = null, string? WorkedSolution = null, CircuitDefinition? Circuit = null);
+// Answer data stays server-side: lesson responses are public, so CorrectAnswer, the numeric
+// target/tolerance and the worked solution are never serialized. Validators read them from the
+// in-memory record, and the worked solution is returned in ValidationResult only after a pass.
+record Exercise(ExerciseKind Kind, string Title, string Prompt, string[] Requirements, string? StarterCode, [property: JsonIgnore] string? CorrectAnswer, Choice[] Choices, string Hint, string[] Tests, [property: JsonIgnore] double? ExpectedNumeric = null, [property: JsonIgnore] double? Tolerance = null, string? Unit = null, IReadOnlyDictionary<string, double>? UnitConversions = null, [property: JsonIgnore] string? WorkedSolution = null, CircuitDefinition? Circuit = null);
 record Choice(string Id, string Text);
 record Submission(string LessonSlug, string? Answer, string? Code, string? Unit = null, string? MeterMode = null, string? RedProbe = null, string? BlackProbe = null, string? Diagnosis = null);
 record LearnerProgressResponse(string LearnerId, string[] CompletedLessonSlugs);

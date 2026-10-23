@@ -331,15 +331,11 @@ test.describe('public API contract', () => {
 
     const lessonResponse = await request.get(`${apiBaseUrl}/api/lessons/ee-ohms-law`)
     await expect(lessonResponse).toBeOK()
-    await expect(lessonResponse.json()).resolves.toMatchObject({
-      exercise: {
-        kind: 'Numeric',
-        expectedNumeric: 36.36,
-        tolerance: 0.1,
-        unit: 'mA',
-        workedSolution: expect.stringContaining('I = V / R'),
-      },
-    })
+    const ohmsLaw = await lessonResponse.json() as { exercise: Record<string, unknown> }
+    expect(ohmsLaw.exercise).toMatchObject({ kind: 'Numeric', unit: 'mA' })
+    // The public lesson payload must not reveal the answer or the worked solution.
+    for (const field of ['expectedNumeric', 'tolerance', 'workedSolution', 'correctAnswer'])
+      expect(ohmsLaw.exercise).not.toHaveProperty(field)
 
     const learnerId = `ee-numeric-${crypto.randomUUID()}`
     const headers = { 'X-Learner-Id': learnerId }
@@ -495,8 +491,9 @@ test.describe('public API contract', () => {
     expect(questions.length).toBeGreaterThan(30)
     for (const lesson of questions) {
       expect(lesson.exercise.prompt).toMatch(/\?$/)
-      expect(lesson.exercise.correctAnswer).toBeTruthy()
-      expect(lesson.exercise.choices.map(choice => choice.id)).toContain(lesson.exercise.correctAnswer)
+      expect(lesson.exercise.choices.length).toBeGreaterThan(1)
+      // Answer keys stay server-side; CurriculumInvariantTests checks each key is a real choice.
+      expect(lesson.exercise).not.toHaveProperty('correctAnswer')
     }
   })
 
