@@ -75,6 +75,29 @@ public class CurriculumInvariantTests
             Assert.True(slugs.Contains(lesson.NextSlug!), $"{courseId}/{lesson.Slug}: NextSlug '{lesson.NextSlug}' is outside the course.");
     }
 
+    [Theory]
+    [MemberData(nameof(PublishedCourseIds))]
+    public void Multiple_choice_answer_keys_name_one_of_the_choices(string courseId)
+    {
+        foreach (var lesson in LessonsOf(courseId).Where(lesson => lesson.Exercise.Kind == ExerciseKind.MultipleChoice))
+        {
+            Assert.True(lesson.Exercise.Choices.Length > 1, $"{lesson.Slug}: a multiple-choice exercise needs at least two choices.");
+            Assert.Contains(lesson.Exercise.CorrectAnswer, lesson.Exercise.Choices.Select(choice => choice.Id));
+        }
+    }
+
+    [Fact]
+    public void Public_lesson_json_never_contains_answer_data()
+    {
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        foreach (var lesson in Curriculum.BySlug.Values)
+        {
+            var json = System.Text.Json.JsonSerializer.SerializeToNode(lesson, options)!["exercise"]!.AsObject();
+            foreach (var field in new[] { "correctAnswer", "expectedNumeric", "tolerance", "workedSolution" })
+                Assert.False(json.ContainsKey(field), $"{lesson.Slug}: exercise.{field} is serialized in the public lesson response.");
+        }
+    }
+
     [Fact]
     public void Tailwind_lessons_carry_the_tailwind_stamp_and_distinct_key_ideas()
     {
