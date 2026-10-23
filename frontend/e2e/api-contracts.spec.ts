@@ -369,7 +369,14 @@ test.describe('public API contract', () => {
     await expect(diode.json()).resolves.toMatchObject({ body: expect.stringContaining('flyback'), exercise: { kind: 'Presentation' } })
     await expect(encoded.json()).resolves.toMatchObject({ body: expect.stringContaining('does not prove a specific circuit type') })
     await expect(project.json()).resolves.toMatchObject({ body: expect.stringContaining('photoelectric safety sensors') })
-    await expect(assessment.json()).resolves.toMatchObject({ exercise: { kind: 'MultipleChoice', correctAnswer: 'uncertain' } })
+    const finalCheck = await assessment.json() as { exercise: Record<string, unknown> }
+    expect(finalCheck.exercise).toMatchObject({ kind: 'MultipleChoice' })
+    expect(finalCheck.exercise).not.toHaveProperty('correctAnswer')
+    // The answer key stays server-side; prove it by submitting.
+    const headers = { 'X-Learner-Id': `ee-final-${crypto.randomUUID()}` }
+    const graded = await request.post(`${apiBaseUrl}/api/submissions/validate`, { headers, data: { lessonSlug: 'ee-final-project-check', answer: 'uncertain' } })
+    await expect(graded).toBeOK()
+    await expect(graded.json()).resolves.toMatchObject({ passed: true })
   })
 
   test('serves reusable circuit labs without exposing validator answers and validates measurements', async ({ request }) => {
