@@ -35,13 +35,13 @@ Treat every value stored in Railway as exposed. Generate **new** values; never c
 ## 2. Provision
 
 **Neon** (already installed on your Vercel account; free tier):
-1. Create two projects in a US East region close to Fly `iad`: `pathway` and `pathway-auth`.
+1. The Neon organization is managed by Vercel, so create databases from **Vercel → Storage → Create Database → Neon**, not from the Neon console or API. Create two: `pathway` and `pathway-auth`, region **US East 1 (N. Virginia)** (next to Fly `iad`), **PostgreSQL 18**. Both Railway databases run PostgreSQL 18; a dump from 18 will not restore into an older server. You don't need to connect either database to a Vercel project; only the Fly apps use them.
 2. Use the **direct** (non-pooled) connection strings. Keycloak's schema migrations need a session connection, and traffic is low enough that pooling isn't needed.
 3. Note the Postgres version Neon gives you. It must be equal to or newer than Railway's for `pg_restore`.
 
 > Neon's free tier suspends idle computes and includes 100 compute-hours per project per month. Keycloak keeps sessions in memory, so its database can suspend while idle. Watch usage in the first week; if the auth database stays awake, move that project to a paid plan.
 
-**Fly.io** (`brew install flyctl` or see fly.io/docs/flyctl/install, then `fly auth login`):
+**Fly.io** (`brew install flyctl` or see fly.io/docs/flyctl/install, then `fly auth login`). `scripts/fly-bootstrap.sh` does everything in this block interactively, generating the shared secrets locally; the commands below show what it runs:
 
 ```sh
 fly apps create pathway-broker
@@ -62,6 +62,8 @@ fly secrets set --app pathway-api \
 Create a deploy token for GitHub Actions (`fly tokens create deploy --org personal` or an org token) and save it as the repository secret **`FLY_API_TOKEN`** in a GitHub environment named `production`.
 
 ## 3. Migrate the data
+
+`scripts/migrate-databases.sh` performs the steps below and verifies exact row counts per table. It refuses to run with a `pg_dump` older than 18 or to restore into a non-empty database.
 
 Railway is the only copy of user accounts (Keycloak) and learner progress, so this has to wait until Railway's databases are reachable again. The outage is a natural write freeze: nothing new is being written.
 
@@ -99,9 +101,11 @@ fly certs add pathway-auth.orangecastle.net --app pathway-auth
 fly certs add pathway-api.orangecastle.net --app pathway-api
 ```
 
-Add those records at the DNS provider for `orangecastle.net`. Until DNS resolves, Keycloak's issuer (`KC_HOSTNAME`) won't match and logins will fail. That is expected.
+Add those records in **Cloudflare**, which hosts DNS for `orangecastle.net`. Set them to **DNS only** (grey cloud). Fly and Vercel issue their own TLS certificates and need to see requests directly; Cloudflare's proxy in front of them can break certificate issuance and adds a second TLS hop. Until DNS resolves, Keycloak's issuer (`KC_HOSTNAME`) won't match and logins will fail. That is expected.
 
 ## 5. Deploy the frontend on Vercel
+
+> **Status (2026-10-23): done except DNS.** The Vercel project `pathway` exists, is linked to `conorbrown-dev/pathway` (root `frontend`, production branch `main`) and has the four `VITE_*` variables. `pathway.orangecastle.net` is attached, and a production build of `8fb38e8` is live at `https://pathway-kappa-ecru.vercel.app`; it shows "API unavailable" until the Fly API is up. Only the Cloudflare change in step 3 remains. The steps below are kept for reference.
 
 1. In Vercel, **Add New → Project**, import `conorbrown-dev/pathway`, and set **Root Directory** to `frontend`. `vercel.json` supplies the build settings, SPA rewrites and headers. The Vercel account must be able to see the GitHub repository; grant access to that repo in the Vercel GitHub App if it isn't listed.
 2. Set these environment variables for Production. Vite embeds them at build time, so redeploy after changing any of them:
@@ -113,7 +117,7 @@ Add those records at the DNS provider for `orangecastle.net`. Until DNS resolves
    VITE_KEYCLOAK_CLIENT_ID=pathway-web
    VITE_DONATION_URL=<optional>
    ```
-3. Add the domain `pathway.orangecastle.net` to the project, then point its DNS record at the value Vercel shows. This replaces the Railway CNAME.
+3. The domain `pathway.orangecastle.net` is already attached to the Vercel project. To cut over, change the Cloudflare record `pathway` to **CNAME `2d345992e92faf49.vercel-dns-017.com`**, set to **DNS only** (grey cloud). Today it's a proxied record pointing at Railway.
 
 > Vercel's Hobby plan is limited to non-commercial use. Check whether the donation link puts Pathway outside that, and move to Pro if needed.
 
