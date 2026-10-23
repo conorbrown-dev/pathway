@@ -21,7 +21,7 @@ GitHub Actions runs the complete local browser suite on every pull request and `
 
 ## Authenticated production smoke
 
-Protected Keycloak behavior needs a dedicated non-human test learner and a short-lived Playwright storage-state file. Never place the test learner password, a token, or the generated storage-state file in the repository.
+Protected (signed-in) behavior needs a dedicated non-human test learner and a short-lived Playwright storage-state file. Never place the test learner password, a token, or the generated storage-state file in the repository.
 
 Run only after provisioning those secrets in the CI secret store:
 

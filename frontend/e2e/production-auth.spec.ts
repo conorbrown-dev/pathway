@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 const hasAuthenticatedProductionConfig = Boolean(process.env.PLAYWRIGHT_BASE_URL && process.env.PLAYWRIGHT_AUTH_STORAGE_STATE)
 
 test.describe('authenticated production smoke', () => {
-  test.skip(!hasAuthenticatedProductionConfig, 'Requires PLAYWRIGHT_BASE_URL and a short-lived PLAYWRIGHT_AUTH_STORAGE_STATE created for a dedicated Keycloak test learner.')
+  test.skip(!hasAuthenticatedProductionConfig, 'Requires PLAYWRIGHT_BASE_URL and a short-lived PLAYWRIGHT_AUTH_STORAGE_STATE created for a dedicated Auth0 test learner.')
 
   test('loads the signed-in learner identity and protected progress experience', async ({ page }) => {
     await page.goto('/')

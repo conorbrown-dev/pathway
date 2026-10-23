@@ -1,0 +1,30 @@
+# Fly.io fallback for the sandbox broker (production runs on Vercel; see docs/hosting.md). It has
+# no [http_service], so Fly allocates no public IP; the API reaches it at
+# http://pathway-broker.internal:8080 over the private network.
+#   fly deploy --config sandbox-broker/fly.toml sandbox-broker
+# Secrets: RUNNER_SHARED_SECRET (same value as the API's EVALUATOR_SHARED_SECRET) and VERCEL_TOKEN
+# (off Vercel there is no per-request OIDC token); env SANDBOX_TEAM_ID and SANDBOX_PROJECT_ID.
+app = "pathway-broker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.vercel"
+
+[env]
+  PORT = "8080"
+  # Bind the private IPv6 network (6PN) as well as IPv4.
+  HOST = "::"
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 8080
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "256mb"

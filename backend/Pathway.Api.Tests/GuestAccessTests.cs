@@ -8,22 +8,22 @@ using Xunit;
 namespace Pathway.Api.Tests;
 
 /// <summary>
-/// Boots the API as production does (Keycloak configured) to pin the guest policy:
+/// Boots the API as production does (identity provider configured) to pin the guest policy:
 /// guests can answer in-process exercises and read their progress, while code exercises,
-/// which start a sandbox, require sign-in. CI's browser suite runs without Keycloak and
+/// which start a sandbox, require sign-in. CI's browser suite runs without an identity provider and
 /// cannot cover this.
 /// </summary>
-public sealed class GuestAccessTests : IClassFixture<GuestAccessTests.KeycloakConfiguredApi>
+public sealed class GuestAccessTests : IClassFixture<GuestAccessTests.AuthConfiguredApi>
 {
-    public sealed class KeycloakConfiguredApi : WebApplicationFactory<Program>
+    public sealed class AuthConfiguredApi : WebApplicationFactory<Program>
     {
-        public KeycloakConfiguredApi()
+        public AuthConfiguredApi()
         {
             // Program reads these before the host is built, so they must be real configuration
             // sources rather than late overrides. No token is ever validated in these tests, so
             // the authority is never contacted.
-            Environment.SetEnvironmentVariable("KEYCLOAK_AUTHORITY", "https://keycloak.invalid/realms/pathway");
-            Environment.SetEnvironmentVariable("KEYCLOAK_AUDIENCE", "pathway-api");
+            Environment.SetEnvironmentVariable("AUTH_AUTHORITY", "https://pathway-test.invalid/");
+            Environment.SetEnvironmentVariable("AUTH_AUDIENCE", "https://api.pathway.test");
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder) =>
@@ -32,7 +32,7 @@ public sealed class GuestAccessTests : IClassFixture<GuestAccessTests.KeycloakCo
 
     private readonly HttpClient client;
 
-    public GuestAccessTests(KeycloakConfiguredApi api)
+    public GuestAccessTests(AuthConfiguredApi api)
     {
         client = api.CreateClient();
         client.DefaultRequestHeaders.Add(LearnerIdentity.GuestHeader, $"guest-test-{Guid.NewGuid():N}"[..40]);

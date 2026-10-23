@@ -1,7 +1,7 @@
 [build]
 builder = "RAILPACK"
 buildCommand = "npm ci"
-watchPatterns = ["modal-broker/**"]
+watchPatterns = ["sandbox-broker/**"]
 
 [deploy]
 startCommand = "npm start"

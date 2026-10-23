@@ -9,9 +9,7 @@ on:
       - 'backend/Pathway.Api/**'
       - 'backend/Pathway.Api.Tests/**'
       - 'evaluator/Pathway.Evaluator/**'
-      - 'infra/keycloak/**'
-      - 'modal-broker/**'
-      - 'docker-compose.keycloak.yml'
+      - 'sandbox-broker/**'
       - '.github/workflows/verify.yml'
 
 permissions:
@@ -64,19 +62,19 @@ jobs:
       - run: dotnet restore
       - run: dotnet build --no-restore --configuration Release
 
-  modal-broker:
-    name: Modal broker tests
+  sandbox-broker:
+    name: Sandbox broker tests
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: modal-broker
+        working-directory: sandbox-broker
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: modal-broker/package-lock.json
+          cache-dependency-path: sandbox-broker/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -121,14 +119,6 @@ jobs:
       - run: PLAYWRIGHT_VITE_API_BASE_URL=http://127.0.0.1:5100 npm run test:e2e
         working-directory: frontend
 
-  keycloak-config:
-    name: Keycloak configuration
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: python3 -m json.tool infra/keycloak/realm-import/pathway-realm.json > /dev/null
-      - run: docker compose --env-file .env.keycloak.example -f docker-compose.keycloak.yml config > /dev/null
-
   container-images:
     name: Container images build
     runs-on: ubuntu-latest
@@ -139,10 +129,8 @@ jobs:
           - name: api
             context: backend/Pathway.Api
           - name: broker
-            context: modal-broker
-          - name: keycloak
-            context: infra/keycloak
+            context: sandbox-broker
     steps:
       - uses: actions/checkout@v4
       - name: Build ${{ matrix.name }} image (no push)
-        run: docker build --tag pathway-${{ matrix.name }}:ci ${{ matrix.context }}
+        run: docker build --file ${{ matrix.context }}/Dockerfile.vercel --tag pathway-${{ matrix.name }}:ci ${{ matrix.context }}

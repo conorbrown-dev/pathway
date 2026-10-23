@@ -29,7 +29,7 @@ These check every published course for version stamps, contiguous lesson order, 
 
 ## Browser smoke tests
 
-Install the Playwright browser once, then run the same suite locally or against Railway:
+Install the Playwright browser once, then run the suite locally or against production:
 
 ```sh
 cd frontend
@@ -38,94 +38,29 @@ npx playwright install chromium
 # Local: start the API in another terminal first.
 npm run test:e2e
 
-# Production
+# Production (the API is served on the same origin under /api)
 PLAYWRIGHT_BASE_URL=https://pathway.orangecastle.net \
-PLAYWRIGHT_API_BASE_URL=https://api-production-7d4e.up.railway.app \
+PLAYWRIGHT_API_BASE_URL=https://pathway.orangecastle.net \
 npm run test:e2e
 ```
 
-The suite verifies API health/current curriculum metadata and that a guest learner can load and interact with the first lesson. It intentionally does not create production accounts or execute code exercises.
+The suite verifies API health and curriculum metadata, and checks that a guest learner can load and interact with the first lesson. It intentionally does not create production accounts or execute code exercises.
 
 ## Hosting
 
-Pathway is moving off Railway after Railway's October 2026 security incident: Vercel for the frontend, Fly.io for the API, Keycloak and evaluator broker, and Neon for Postgres. Follow [Migrating Pathway off Railway](docs/migrate-off-railway.md). The Railway sections below remain accurate for the current production deployment until cutover.
+Production runs on **Vercel** (frontend, plus the API and evaluator broker as containers), **Neon** (Postgres) and **Auth0** (sign-in). [docs/hosting.md](docs/hosting.md) has the architecture, every environment variable, the Auth0 setup and the DNS record. Each Vercel project deploys on push to `main` when its own directory changes. The Railway deployment and its `railway.toml` files are legacy and will be removed once the new hosting is verified.
 
-## Deploy on Railway (legacy)
+## Sign-in (Auth0)
 
-See [Railway + GitHub setup](docs/railway-github-setup.md) for the one-time production service configuration and push-to-deploy checklist. Use the [Railway staging setup](docs/railway-staging-setup.md) to create an isolated environment and run pre-production smoke checks.
-Use the [production launch runbook](docs/launch-runbook.md) before opening the service to public learners.
+The SPA signs learners in with Auth0 using the authorization code flow with PKCE (`@auth0/auth0-spa-js`). Auth0 hosts the sign-in and sign-up pages, so Pathway never sees a password. The API validates Auth0 access tokens (issuer, signature, audience, expiry) through standard JWT bearer authentication configured by `AUTH_AUTHORITY` and `AUTH_AUDIENCE`, so any OIDC provider that issues JWT access tokens works.
 
-Create the web, API, Keycloak, and private Modal broker services from this repository. The web, API, and broker use Railpack; only the Keycloak service uses a Dockerfile:
+For local development, copy [frontend/.env.example](frontend/.env.example) to `frontend/.env.local` and fill in the `VITE_AUTH0_*` values from a development Auth0 application (add `http://localhost:5173` to its allowed callback, logout and web-origin URLs). The backend variables are in [appsettings.Development.json.example](backend/Pathway.Api/appsettings.Development.json.example); do not commit a populated local settings file. With no Auth0 configuration, the app runs in guest-only mode.
 
-| Service | Root directory | Config-as-code path | Required variables |
-| --- | --- | --- | --- |
-| `pathway-web` | `/frontend` | `/frontend/railway.toml` | `VITE_API_BASE_URL=https://<your-api-domain>`, `VITE_KEYCLOAK_URL=https://<keycloak-domain>`, `VITE_KEYCLOAK_REALM=pathway`, `VITE_KEYCLOAK_CLIENT_ID=pathway-web`, optional `VITE_DONATION_URL=https://<your-donation-provider-link>` **at build time** |
-| `pathway-api` | `/backend/Pathway.Api` | `/backend/Pathway.Api/railway.toml` | `CORS_ORIGINS=https://pathway.orangecastle.net`, `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `KEYCLOAK_AUTHORITY=https://<keycloak-domain>/realms/pathway`, `KEYCLOAK_AUDIENCE=pathway-api` |
-| `pathway-modal-broker` | `/modal-broker` | `/modal-broker/railway.toml` | `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`, `RUNNER_SHARED_SECRET` — private only, no public domain |
+Signed-in learners' progress and submissions are stored under `user:<sub>`. Guests can learn without an account: the SPA sends a random ID in `X-Learner-Id`, stored as `guest:<id>` so it can never address a signed-in learner's records. Guests can answer every in-process exercise (multiple choice, numeric, circuit) and read their progress. Code exercises start a sandbox and require sign-in once authentication is configured. The learning-experience endpoints (workspaces, community, coach, module checkpoints) also require an account.
 
-Generate a public domain for both services. Set the API URL before deploying the web service, because Vite embeds `VITE_*` values in its static build. The API service binds to Railway’s injected `PORT` and exposes `/health` for the Railway deployment check.
+## Code evaluation
 
-## Keycloak authentication
-
-Pathway uses Keycloak as the in-house identity provider. Create a **public OIDC client** named `pathway-web`, enable Standard Flow with PKCE (`S256`), and configure valid redirect URIs and web origins for both your local Vite URL and Railway web domain. Keycloak owns user registration, passwords, MFA, sessions, and logout; the SPA never sends a password to Pathway.
-
-Copy [frontend/.env.example](frontend/.env.example) to `frontend/.env.local` for local configuration. The backend variables are shown in [appsettings.Development.json.example](backend/Pathway.Api/appsettings.Development.json.example); do not commit a populated local settings file.
-
-### Run Keycloak locally
-
-The repository includes a complete local Keycloak stack and an importable `pathway` realm. Docker is the only prerequisite.
-
-```sh
-cp .env.keycloak.example .env.keycloak
-# Edit .env.keycloak and replace both passwords.
-docker compose --env-file .env.keycloak -f docker-compose.keycloak.yml up -d
-```
-
-Open `http://localhost:8080/admin` and sign in with `KEYCLOAK_ADMIN_USERNAME` and `KEYCLOAK_ADMIN_PASSWORD`. The supplied realm import enables self-registration, contains the `pathway-web` public SPA client with PKCE S256, and adds `pathway-api` to its access-token audience.
-
-Then create `frontend/.env.local` from the example and configure the API variables for the same local realm:
-
-```sh
-VITE_KEYCLOAK_URL=http://localhost:8080
-VITE_KEYCLOAK_REALM=pathway
-VITE_KEYCLOAK_CLIENT_ID=pathway-web
-
-KEYCLOAK_AUTHORITY=http://localhost:8080/realms/pathway
-KEYCLOAK_AUDIENCE=pathway-api
-```
-
-To stop local Keycloak without deleting identities, use `docker compose -f docker-compose.keycloak.yml down`. Add `-v` only when you intentionally want to erase the local Keycloak database.
-
-### Deploy Keycloak on Railway
-
-Create a third Railway service named `pathway-keycloak` from this repository:
-
-| Setting | Value |
-| --- | --- |
-| Root directory | `/infra/keycloak` |
-| Config-as-code path | `/infra/keycloak/railway.toml` |
-| Public domain | Generate one; this becomes `https://<keycloak-domain>` |
-
-Attach a **dedicated** Railway Postgres database to this service (do not use the Pathway application database). In the Keycloak service Variables tab, set:
-
-```sh
-KC_BOOTSTRAP_ADMIN_USERNAME=your-admin-username
-KC_BOOTSTRAP_ADMIN_PASSWORD=<long unique secret>
-KC_DB=postgres
-KC_DB_URL=jdbc:postgresql://${{KeycloakPostgres.PGHOST}}:${{KeycloakPostgres.PGPORT}}/${{KeycloakPostgres.PGDATABASE}}
-KC_DB_USERNAME=${{KeycloakPostgres.PGUSER}}
-KC_DB_PASSWORD=${{KeycloakPostgres.PGPASSWORD}}
-```
-
-After the first Keycloak deployment, open its admin console, select realm `pathway`, and add `https://pathway.orangecastle.net/*` to **Valid redirect URIs** and `https://pathway.orangecastle.net` to **Web origins**. The realm import includes this domain for fresh installs but deliberately ignores existing realms on later restarts, so add it in the admin console for an existing production realm.
-
-Create an API audience/client named `pathway-api` and add it to the access-token audience for `pathway-web`. The API validates issuer, signature, audience, expiration, and subject through Keycloak’s OIDC metadata. It stores progress and submissions under `keycloak:<sub>` in Postgres. Guests can learn without an account: the SPA sends a random ID in `X-Learner-Id`, stored as `guest:<id>` so it can never address a signed-in learner's records. Guests can answer every in-process exercise (multiple choice, numeric, circuit) and read their progress; code exercises start a sandbox and require sign-in once Keycloak is configured. The learning-experience endpoints (workspaces, community, coach, module checkpoints) also require an account.
-
-Add a Railway Postgres service and reference its `DATABASE_URL` from `pathway-api`. The API creates the progress and submission tables on startup.
-
-For production code exercises, create a fourth private Railway service named `pathway-modal-broker`, with root directory `/modal-broker` and config path `/modal-broker/railway.toml`. Do not assign it a public domain. Create a Modal API token in the Modal dashboard and set `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` only on this private broker. Generate one long random `RUNNER_SHARED_SECRET`, set it on the broker, and set the identical value as `EVALUATOR_SHARED_SECRET` on `pathway-api`. Finally set `EVALUATOR_URL=http://pathway-modal-broker.railway.internal:8080` on `pathway-api` (use the private hostname Railway displays for the broker if it differs). The broker creates a fresh Modal gVisor sandbox for each submission with no outbound network, no Railway credentials, 0.5 CPU, 512 MiB memory, a 12-second execution limit, and bounded output.
-
-The public API forwards only code exercises to `POST /evaluate` with `{ "lessonSlug", "code" }` and an internal shared-secret header; the broker returns the `ValidationResult` shape from the API. When `ASPNETCORE_ENVIRONMENT=Production`, code exercises deliberately fail closed unless the evaluator URL and secret are configured. The in-process deterministic validator exists only for local content development.
+Learner code never runs in the API process. The API forwards code exercises to the sandbox broker (`sandbox-broker/`, `POST /evaluate` with `{ "lessonSlug", "code" }` and a shared-secret header: `EVALUATOR_SHARED_SECRET` = the broker's `RUNNER_SHARED_SECRET`). The broker creates a fresh **Vercel Sandbox** microVM per submission from one of four images in `sandbox-broker/images/` (`dotnet`, `rust`, `node`, `tools`): no network, 1 vCPU, a 12-second command limit and bounded output. The Sandbox images workflow builds those images on pull requests and publishes them to the broker project's Vercel Container Registry from `main`. When `ASPNETCORE_ENVIRONMENT=Production`, code exercises fail closed unless the evaluator URL and secret are configured. The in-process deterministic validator exists only for local content development.
 
 ## Included experience
 

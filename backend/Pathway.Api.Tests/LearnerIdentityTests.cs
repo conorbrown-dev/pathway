@@ -17,14 +17,14 @@ public class LearnerIdentityTests
 
     [Fact]
     public void Signed_in_learners_are_keyed_by_subject_even_when_a_guest_header_is_sent() =>
-        Assert.Equal("keycloak:abc-123", LearnerIdentity.Resolve(Context("4f1c2d3e-guest", "abc-123")));
+        Assert.Equal("user:auth0|abc-123", LearnerIdentity.Resolve(Context("4f1c2d3e-guest", "auth0|abc-123")));
 
     [Fact]
     public void Guest_ids_are_namespaced() =>
         Assert.Equal("guest:4f1c2d3e-5a6b-7c8d-9e0f-112233445566", LearnerIdentity.Resolve(Context("4f1c2d3e-5a6b-7c8d-9e0f-112233445566")));
 
     [Theory]
-    [InlineData("keycloak:victim-subject")] // must not address a signed-in learner's records
+    [InlineData("user:victim-subject")] // must not address a signed-in learner's records
     [InlineData("guest:nested")]
     [InlineData("short")]
     [InlineData("has spaces in it")]

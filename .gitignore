@@ -31,10 +31,6 @@ appsettings.Development.json
 appsettings.Production.json
 secrets.json
 
-# Keycloak local runtime and exported realm data
-keycloak-postgres/
-infra/keycloak/data/
-infra/keycloak/realm-export/
 
 # Editor / OS / local tooling
 .DS_Store

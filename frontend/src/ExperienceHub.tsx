@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { Check, MessageCircle, Save, Send, Sparkles } from 'lucide-react'
-import { keycloak } from './keycloak'
+import { currentToken } from './auth'
 
 type Course = { id: string; title: string; languageId: string; modules: { title: string; lessons: { slug: string; title: string }[] }[] }
 type View = 'dashboard' | 'projects' | 'community' | 'coach'
@@ -20,7 +20,7 @@ type OutcomeMetrics = { courseId: string; completedLessons: number; totalLessons
 type PeerMatch = { id: string; focus: string; wantsMentorOfficeHours: boolean; updatedAt: string }
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
-const headers = (): Record<string, string> => keycloak?.token ? { 'content-type': 'application/json', Authorization: `Bearer ${keycloak.token}` } : { 'content-type': 'application/json', 'X-Learner-Id': localStorage.getItem('pathway-learner-id') ?? 'guest' }
+const headers = (): Record<string, string> => currentToken() ? { 'content-type': 'application/json', Authorization: `Bearer ${currentToken()}` } : { 'content-type': 'application/json', 'X-Learner-Id': localStorage.getItem('pathway-learner-id') ?? 'guest' }
 const fallbackTemplates: Template[] = [
   { id: 'python-learning-api', title: 'Learning API', description: 'Build a typed FastAPI service with tests.', language: 'python', files: [{ path: 'src/learning_service/main.py', content: 'from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get("/health")\ndef health() -> dict[str, str]:\n    return {"status": "ok"}\n' }, { path: 'tests/test_health.py', content: 'def test_health() -> None:\n    assert True\n' }] },
   { id: 'python-event-pipeline', title: 'Event pipeline', description: 'Design idempotent processing with retries and operational signals.', language: 'python', files: [{ path: 'src/pipeline/consumer.py', content: 'def process_event(event_id: str, payload: dict[str, object]) -> None:\n    raise NotImplementedError\n' }, { path: 'README.md', content: '# Event pipeline\n\nDocument delivery semantics and recovery.\n' }] },

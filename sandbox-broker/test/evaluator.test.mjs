@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { boundedOutput, evaluationResult, fixtureFor, hookInputFor, hookMatcherMatches, interpretHookResult, validateHookRequest, validateRequest } from '../src/evaluator.mjs'
+import { boundedOutput, evaluationResult, fixtureFor, sandboxImageFor, hookInputFor, hookMatcherMatches, interpretHookResult, validateHookRequest, validateRequest } from '../src/evaluator.mjs'
 
 test('accepts bounded valid code submissions', () => assert.equal(validateRequest({ lessonSlug: 'python-functions', code: 'def greet(name): return name' }), null))
 
@@ -165,4 +165,25 @@ test('has isolated Kubernetes fixtures for every Kubernetes coding exercise', ()
     assert.match(fixture.files['kube_check.py'], /PATHWAY_TEST_PASS/)
     assert.deepEqual(fixture.command.slice(-2), [lessonSlug, '/workspace/submission.txt'])
   }
+})
+
+test('maps every fixture runtime to a Vercel Sandbox image', () => {
+  const images = new Set(['dotnet', 'rust', 'node', 'tools'])
+  const slugs = ['python-functions', 'modern-csharp-records', 'rust-ownership', 'react-use-state', 'git-init-status', 'sqlite-crud', 'linux-permissions', 'vim-search-substitute', 'k8s-services']
+  for (const slug of slugs) {
+    const fixture = fixtureFor(slug, 'x')
+    assert.ok(fixture, `missing fixture for ${slug}`)
+    const [repository, tag] = sandboxImageFor(fixture.runtime).split(':')
+    assert.ok(images.has(repository), `${slug} -> ${repository}`)
+    assert.equal(tag, 'latest')
+    assert.ok(Object.keys(fixture.files).every(path => !path.startsWith('/')), `${slug} writes outside /workspace`)
+  }
+  assert.equal(sandboxImageFor('hook', 'v2'), 'tools:v2')
+  assert.equal(sandboxImageFor(undefined), 'dotnet:latest')
+})
+
+test('every image a runtime can map to has a Dockerfile', async () => {
+  const { existsSync } = await import('node:fs')
+  for (const repository of ['dotnet', 'rust', 'node', 'tools'])
+    assert.ok(existsSync(new URL(`../images/${repository}/Dockerfile`, import.meta.url)), `images/${repository}/Dockerfile`)
 })

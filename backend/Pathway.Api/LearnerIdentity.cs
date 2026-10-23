@@ -4,9 +4,9 @@ namespace Pathway.Api;
 
 /// <summary>
 /// Resolves the storage key for the current learner. Signed-in learners are keyed by their
-/// Keycloak subject; guests by a client-generated ID sent in <see cref="GuestHeader"/>.
+/// identity provider's subject (Auth0 <c>sub</c>); guests by a client-generated ID sent in <see cref="GuestHeader"/>.
 /// Guest keys are always namespaced with <c>guest:</c> so a client-chosen header can never
-/// address a signed-in learner's records (for example by sending <c>keycloak:&lt;sub&gt;</c>).
+/// address a signed-in learner's records (for example by sending <c>user:&lt;sub&gt;</c>).
 /// </summary>
 public static class LearnerIdentity
 {
@@ -32,7 +32,7 @@ public static class LearnerIdentity
     public static string Resolve(HttpContext context)
     {
         var subject = context.User.FindFirstValue("sub");
-        if (!string.IsNullOrWhiteSpace(subject)) return $"keycloak:{subject}";
+        if (!string.IsNullOrWhiteSpace(subject)) return $"user:{subject}";
         return GuestId(context) is { } guest ? $"guest:{guest}" : Anonymous;
     }
 }

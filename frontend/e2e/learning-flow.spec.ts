@@ -97,7 +97,7 @@ test('accepts anonymous activity events and protects aggregate analytics', async
 })
 
 test('serves learning-experience templates, checkpoints, and guarded coaching', async ({ request }) => {
-  test.skip(Boolean(process.env.PLAYWRIGHT_BASE_URL), 'Experience endpoints require a production Keycloak test identity.')
+  test.skip(Boolean(process.env.PLAYWRIGHT_BASE_URL), 'Experience endpoints require a production test identity.')
   const templates = await request.get(`${apiBaseUrl}/api/experience/projects/templates`)
   await expect(templates).toBeOK()
   await expect(templates.json()).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'python-learning-api', files: expect.any(Array) })]))
