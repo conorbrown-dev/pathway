@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Editor, { loader } from "@monaco-editor/react";
 import "./onboarding.css";
 import { ExperienceHub } from "./ExperienceHub";
 import { getAnonymousLearnerId, trackActivity, trackActivityOnce } from "./analytics";
 import { authConfigured, initializeAuth, login, logout as signOut, refreshToken } from "./auth";
+import { parseLessonBody, parseLessonInline } from "./lessonBody";
 import {
   ArrowLeft,
   ArrowRight,
@@ -1883,6 +1884,108 @@ function HighlightedCode({
   );
 }
 
+const fenceLanguages: Record<string, SnippetLanguage> = {
+  rust: "rust",
+  rs: "rust",
+  csharp: "csharp",
+  cs: "csharp",
+  "c#": "csharp",
+  python: "python",
+  py: "python",
+  typescript: "typescript",
+  ts: "typescript",
+  tsx: "typescript",
+  javascript: "javascript",
+  js: "javascript",
+  jsx: "javascript",
+  html: "html",
+  css: "css",
+  json: "json",
+  sql: "sql",
+  sh: "shell",
+  bash: "shell",
+  shell: "shell",
+  console: "shell",
+  text: "plaintext",
+  txt: "plaintext",
+  plaintext: "plaintext",
+};
+
+function LessonInlineText({ text }: { text: string }) {
+  return (
+    <>
+      {parseLessonInline(text).map((part, index) =>
+        part.kind === "code" ? (
+          <code key={index} className="lesson-inline-code">
+            {part.text}
+          </code>
+        ) : part.kind === "strong" ? (
+          <strong key={index} className="lesson-strong">
+            {part.text}
+          </strong>
+        ) : (
+          <span key={index}>{part.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+function LessonBody({ lesson }: { lesson: Lesson }) {
+  const blocks = useMemo(() => parseLessonBody(lesson.body), [lesson.body]);
+  return (
+    <div className="lesson-body my-6 space-y-4 text-sm leading-relaxed text-[#454d47]">
+      {blocks.map((block, index) => {
+        switch (block.kind) {
+          case "heading": {
+            const Heading = `h${block.level}` as "h2" | "h3" | "h4";
+            const size = block.level === 2 ? "text-[19px]" : block.level === 3 ? "text-[16px]" : "text-[14px]";
+            return (
+              <Heading key={index} className={`${size} lesson-heading pt-2 font-display font-semibold tracking-[-0.2px] text-forest`}>
+                <LessonInlineText text={block.text} />
+              </Heading>
+            );
+          }
+          case "code": {
+            const language =
+              (block.language && fenceLanguages[block.language]) || snippetLanguage(lesson, block.code);
+            return (
+              <div key={index} className="overflow-hidden rounded-md bg-[#252b28] shadow-sm">
+                <div className="bg-[#303735] px-4 py-2 font-mono text-[10px] text-[#bbc4bb]">
+                  {snippetLanguageLabel[language]}
+                </div>
+                <HighlightedCode
+                  code={block.code}
+                  language={language}
+                  className="syntax-code m-0 overflow-auto p-4 font-mono text-xs leading-6 text-[#dce6de]"
+                />
+              </div>
+            );
+          }
+          case "list": {
+            const List = block.ordered ? "ol" : "ul";
+            return (
+              <List key={index} className={`${block.ordered ? "list-decimal" : "list-disc"} space-y-1.5 pl-5`}>
+                {block.items.map((item, itemIndex) => (
+                  <li key={itemIndex}>
+                    <LessonInlineText text={item} />
+                  </li>
+                ))}
+              </List>
+            );
+          }
+          default:
+            return (
+              <p key={index} className="whitespace-pre-line">
+                <LessonInlineText text={block.text} />
+              </p>
+            );
+        }
+      })}
+    </div>
+  );
+}
+
 function LessonContent({ lesson }: { lesson: Lesson }) {
   const language = snippetLanguage(lesson);
   return (
@@ -1910,13 +2013,7 @@ function LessonContent({ lesson }: { lesson: Lesson }) {
           <strong>Key idea:</strong> {lesson.concept}
         </p>
       </div>
-      <div className="my-6 space-y-4">
-        {lesson.body.split(/\n\s*\n/).map((paragraph, index) => (
-          <p key={index} className="whitespace-pre-line text-sm leading-relaxed text-[#454d47]">
-            {paragraph}
-          </p>
-        ))}
-      </div>
+      <LessonBody lesson={lesson} />
       <div className="overflow-hidden rounded-md bg-[#252b28] shadow-sm">
         <div className="bg-[#303735] px-4 py-2 font-mono text-[10px] text-[#bbc4bb]">
           {snippetLanguageLabel[language]}

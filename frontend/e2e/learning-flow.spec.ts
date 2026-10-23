@@ -234,6 +234,21 @@ test('syntax-highlights displayed code and CLI examples across every course fami
   }
 })
 
+test('renders lesson-body headings, lists, and fenced code instead of raw Markdown', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
+  await page.goto('/courses/rust-systems/lessons/rust-toolchain-cargo')
+  const body = page.locator('.lesson-body')
+  await expect(body.getByRole('heading', { level: 3, name: 'What is Rust?' })).toBeVisible()
+  // Markdown markers are formatting, never visible text.
+  await expect(body).not.toContainText('## ')
+  await expect(body).not.toContainText('```')
+  // Fenced blocks keep their language and are highlighted like the lesson example.
+  const fenced = body.locator('pre[data-syntax-language="rust"]').first()
+  await expect(fenced).toBeVisible()
+  await expect(fenced).toHaveAttribute('data-syntax-highlighted', 'true', { timeout: 15_000 })
+  await expect(body.locator('pre[data-syntax-language="shell"]').first()).toBeVisible()
+})
+
 test('loads the first lesson for a guest learner', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
   await page.goto('/')
