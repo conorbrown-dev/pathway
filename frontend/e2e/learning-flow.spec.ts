@@ -13,11 +13,15 @@ test('serves the current C#/.NET curriculum API', async ({ request }) => {
   expect(body.languageVersion).toBe('C# 14')
   expect(body.frameworkVersion).toBe('.NET 10')
   const lessons = body.modules.flatMap((module: { lessons: { slug: string; order: number }[] }) => module.lessons)
-  expect(lessons).toHaveLength(33)
-  expect(lessons.map((lesson: { order: number }) => lesson.order)).toEqual([...Array(33)].map((_, index) => index + 1))
-  expect(lessons.map((lesson: { slug: string }) => lesson.slug)).toEqual(expect.arrayContaining(['foundations-data-types', 'objects-purpose', 'modern-csharp-records', 'reliability-http-clients', 'staff-leadership-leverage']))
+  // Invariants rather than a lesson count, so adding lessons does not require editing this test.
+  expect(lessons.map((lesson: { order: number }) => lesson.order)).toEqual(lessons.map((_: unknown, index: number) => index + 1))
+  const slugs = lessons.map((lesson: { slug: string }) => lesson.slug)
+  expect(slugs).toEqual(expect.arrayContaining(['foundations-data-types', 'objects-purpose', 'modern-csharp-records', 'reliability-http-clients', 'arch-dependency-direction', 'ddd-aggregates-values', 'architecture-testing-capstone', 'staff-leadership-leverage']))
+  // Architecture and DDD build on the language and API material and precede staff practice.
+  expect(slugs.indexOf('web-api-contracts')).toBeLessThan(slugs.indexOf('arch-dependency-direction'))
+  expect(slugs.indexOf('architecture-testing-capstone')).toBeLessThan(slugs.indexOf('staff-architecture-decisions'))
   expect(lessons[0]).toMatchObject({ slug: 'foundations-how-code-works', order: 1 })
-  expect(lessons.at(-1)).toMatchObject({ slug: 'staff-leadership-leverage', order: 33 })
+  expect(lessons.at(-1)).toMatchObject({ slug: 'staff-leadership-leverage', order: lessons.length })
 })
 
 test('serves the Python Web curriculum and its framework-choice lesson', async ({ request }) => {

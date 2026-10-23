@@ -19,7 +19,9 @@ test.describe('staging deployment smoke checks', () => {
     await expect(catalog.json()).resolves.toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'rust-systems', available: true }),
     ]))
-    const course = await rust.json() as { modules: { lessons: unknown[] }[] }
-    expect(course.modules.flatMap(module => module.lessons)).toHaveLength(33)
+    const course = await rust.json() as { modules: { lessons: { order: number }[] }[] }
+    const orders = course.modules.flatMap(module => module.lessons).map(lesson => lesson.order).sort((a, b) => a - b)
+    expect(orders.length).toBeGreaterThan(0)
+    expect(orders).toEqual(orders.map((_, index) => index + 1))
   })
 })
