@@ -19,6 +19,14 @@ cd backend/Pathway.Api && dotnet run
 
 The Vite dev server proxies `/api` to the API at `http://localhost:5100`.
 
+## Curriculum invariant tests
+
+```sh
+dotnet test backend/Pathway.Api.Tests
+```
+
+These check every published course for version stamps, contiguous lesson order, and in-course `NextSlug` links, so content changes do not need hardcoded lesson counts.
+
 ## Browser smoke tests
 
 Install the Playwright browser once, then run the same suite locally or against Railway:

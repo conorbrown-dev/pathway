@@ -2275,7 +2275,7 @@ function PresentationPanel({
         rel="noreferrer"
         className="mt-5 inline-flex text-xs font-bold text-[#5f37a1] hover:underline"
       >
-        {lesson.slug.startsWith("ee-") ? "Open electrical engineering reference ↗" : "Open the Claude Code hooks reference ↗"}
+        Open the {lesson.version.language} reference ↗
       </a>
       {lesson.nextSlug ? (
         <div className="mt-8 flex items-center gap-3">
