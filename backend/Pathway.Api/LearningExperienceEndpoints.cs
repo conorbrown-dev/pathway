@@ -391,7 +391,7 @@ public static class LearningExperienceEndpoints
     private static bool IsSafeHttpsUrl(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && string.IsNullOrEmpty(uri.UserInfo) && uri.Host.Length > 0 && value!.Length <= 2_000;
     private static bool IsOptionalSafeHttpsUrl(string? value) => string.IsNullOrWhiteSpace(value) || IsSafeHttpsUrl(value);
     private static bool ContainsSecret(string text) => text.Contains("BEGIN PRIVATE KEY", StringComparison.OrdinalIgnoreCase) || text.Contains("password=", StringComparison.OrdinalIgnoreCase) || text.Contains("api_key", StringComparison.OrdinalIgnoreCase) || text.Contains("authorization: bearer", StringComparison.OrdinalIgnoreCase);
-    private static string ResolveLearnerId(HttpContext context) => context.User.FindFirstValue("sub") is { Length: > 0 } subject ? $"keycloak:{subject}" : context.Request.Headers["X-Learner-Id"].FirstOrDefault() is { Length: > 0 and <= 100 } learnerId ? learnerId : "anonymous";
+    private static string ResolveLearnerId(HttpContext context) => LearnerIdentity.Resolve(context);
     private static int CalculateStreak(IEnumerable<DateTimeOffset> dates) { var days = dates.Select(date => DateOnly.FromDateTime(date.UtcDateTime)).Distinct().ToHashSet(); var today = DateOnly.FromDateTime(DateTime.UtcNow); var streak = 0; while (days.Contains(today.AddDays(-streak))) streak++; return streak; }
 }
 

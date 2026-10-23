@@ -41,7 +41,8 @@ var keycloakAuthority = builder.Configuration["KEYCLOAK_AUTHORITY"]?.TrimEnd('/'
 var keycloakAudience = builder.Configuration["KEYCLOAK_AUDIENCE"];
 if (builder.Environment.IsProduction() && (string.IsNullOrWhiteSpace(keycloakAuthority) || string.IsNullOrWhiteSpace(keycloakAudience)))
     throw new InvalidOperationException("KEYCLOAK_AUTHORITY and KEYCLOAK_AUDIENCE are required in production.");
-if (!string.IsNullOrWhiteSpace(keycloakAuthority) && !string.IsNullOrWhiteSpace(keycloakAudience))
+var keycloakConfigured = !string.IsNullOrWhiteSpace(keycloakAuthority) && !string.IsNullOrWhiteSpace(keycloakAudience);
+if (keycloakConfigured)
 {
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
     {
@@ -111,6 +112,10 @@ progressEndpoint.RequireRateLimiting("learner");
 var submissionEndpoint = app.MapPost("/api/submissions/validate", async (Submission submission, HttpContext httpContext, IServiceProvider services, IHttpClientFactory httpClientFactory, IConfiguration configuration, IHostEnvironment environment, CancellationToken cancellationToken) =>
 {
     if (!Curriculum.BySlug.TryGetValue(submission.LessonSlug, out var lesson)) return Results.NotFound();
+    // Guests may answer every exercise that is checked in-process. Code exercises start a
+    // sandbox per submission, so they require an account once authentication is configured.
+    if (keycloakConfigured && lesson.Exercise.Kind == ExerciseKind.Code && !LearnerIdentity.IsAuthenticated(httpContext.User))
+        return Results.Problem("Sign in to run code exercises. Your guest progress stays on this device.", statusCode: StatusCodes.Status401Unauthorized, title: "Sign-in required");
     if ((submission.Answer?.Length ?? 0) > 200 || (submission.Unit?.Length ?? 0) > 20 || (submission.MeterMode?.Length ?? 0) > 30 || (submission.RedProbe?.Length ?? 0) > 50 || (submission.BlackProbe?.Length ?? 0) > 50 || (submission.Diagnosis?.Length ?? 0) > 100 || Encoding.UTF8.GetByteCount(submission.Code ?? string.Empty) > 50_000)
         return Results.BadRequest(new { message = "Answers must be under 200 characters, units under 20 characters, and code at most 50 KB." });
     if (lesson.Exercise.Kind == ExerciseKind.Code && !string.IsNullOrWhiteSpace(configuration["EVALUATOR_URL"]))
@@ -222,19 +227,23 @@ var hookPlaygroundEndpoint = app.MapPost("/api/claude-hooks/evaluate", async (
 hookPlaygroundEndpoint.RequireRateLimiting("submission");
 
 var experienceEndpoints = app.MapLearningExperienceEndpoints();
-if (!string.IsNullOrWhiteSpace(keycloakAuthority) && !string.IsNullOrWhiteSpace(keycloakAudience)) { progressEndpoint.RequireAuthorization(); submissionEndpoint.RequireAuthorization(); experienceEndpoints.RequireAuthorization(); }
+// Progress and submissions stay open to guests (keyed by a namespaced guest ID); the richer
+// learning-experience endpoints (workspaces, community, coach) still require an account.
+if (keycloakConfigured) experienceEndpoints.RequireAuthorization();
+// Curriculum statics initialize lazily; touch them now so malformed content fails the deploy
+// (Railway health check) instead of the first learner request.
+_ = Curriculum.Courses.Count;
 app.Run();
 
 static Task<string> ResolveLearnerId(HttpContext context, IServiceProvider services, CancellationToken cancellationToken)
 {
-    var subject = context.User.FindFirstValue("sub");
-    return Task.FromResult(!string.IsNullOrWhiteSpace(subject) ? $"keycloak:{subject}" : context.Request.Headers["X-Learner-Id"].FirstOrDefault() is { Length: > 0 and <= 100 } learnerId ? learnerId : "anonymous");
+    return Task.FromResult(LearnerIdentity.Resolve(context));
 }
 
 static async Task PersistSubmission(IServiceProvider services, string learnerId, Submission submission, bool passed, CancellationToken cancellationToken)
 {
     var factory = services.GetService<IDbContextFactory<ProgressDbContext>>();
-    if (factory is null) return;
+    if (factory is null || learnerId == LearnerIdentity.Anonymous) return;
     await using var database = await factory.CreateDbContextAsync(cancellationToken);
     database.Submissions.Add(new LearnerSubmission { LearnerId = learnerId, LessonSlug = submission.LessonSlug, Answer = submission.Answer, Code = submission.Code, Passed = passed });
     if (passed && !await database.Progress.AnyAsync(item => item.LearnerId == learnerId && item.LessonSlug == submission.LessonSlug, cancellationToken))
@@ -270,8 +279,8 @@ static RateLimitPartition<string> FixedWindow(HttpContext context, int permitLim
 static RateLimitPartition<string> LearnerWindow(HttpContext context, int permitLimit)
 {
     var subject = context.User.FindFirstValue("sub");
-    var guest = context.Request.Headers["X-Learner-Id"].FirstOrDefault();
-    var key = !string.IsNullOrWhiteSpace(subject) ? $"user:{subject}" : !string.IsNullOrWhiteSpace(guest) && guest.Length <= 100 ? $"guest:{guest}" : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+    var guest = LearnerIdentity.GuestId(context);
+    var key = !string.IsNullOrWhiteSpace(subject) ? $"user:{subject}" : guest is not null ? $"guest:{guest}" : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
     return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
     {
         PermitLimit = permitLimit,

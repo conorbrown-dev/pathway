@@ -182,13 +182,7 @@ public static class AnalyticsEndpoints
         return left.Length == right.Length && CryptographicOperations.FixedTimeEquals(left, right);
     }
 
-    private static string ResolveLearnerId(HttpContext context)
-    {
-        var subject = context.User.FindFirstValue("sub");
-        if (!string.IsNullOrWhiteSpace(subject)) return $"keycloak:{subject}";
-        var guest = context.Request.Headers["X-Learner-Id"].FirstOrDefault();
-        return guest is { Length: > 0 and <= 100 } ? guest : "anonymous";
-    }
+    private static string ResolveLearnerId(HttpContext context) => LearnerIdentity.Resolve(context);
 
     private static string? NullIfBlank(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
