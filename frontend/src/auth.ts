@@ -51,10 +51,12 @@ export async function initializeAuth(): Promise<AuthAccount | null> {
   }
 
   if (!(await auth0.isAuthenticated())) return null
-  latestToken = await auth0.getTokenSilently()
+  const token = await auth0.getTokenSilently()
+  if (!token) return null
+  latestToken = token
   const user = await auth0.getUser()
   return {
-    token: latestToken,
+    token,
     displayName: user?.name ?? user?.nickname ?? 'Learner',
     email: user?.email ?? '',
     subject: user?.sub ?? 'unknown',
@@ -64,7 +66,7 @@ export async function initializeAuth(): Promise<AuthAccount | null> {
 /** Returns a valid access token, refreshing it when it is close to expiry. */
 export async function refreshToken(): Promise<string | null> {
   if (!authConfigured) return null
-  latestToken = await (await client()).getTokenSilently()
+  latestToken = (await (await client()).getTokenSilently()) ?? null
   return latestToken
 }
 
