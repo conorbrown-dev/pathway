@@ -230,6 +230,9 @@ var experienceEndpoints = app.MapLearningExperienceEndpoints();
 // Progress and submissions stay open to guests (keyed by a namespaced guest ID); the richer
 // learning-experience endpoints (workspaces, community, coach) still require an account.
 if (keycloakConfigured) experienceEndpoints.RequireAuthorization();
+// Curriculum statics initialize lazily; touch them now so malformed content fails the deploy
+// (Railway health check) instead of the first learner request.
+_ = Curriculum.Courses.Count;
 app.Run();
 
 static Task<string> ResolveLearnerId(HttpContext context, IServiceProvider services, CancellationToken cancellationToken)
