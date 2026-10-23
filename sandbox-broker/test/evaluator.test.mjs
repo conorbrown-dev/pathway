@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { boundedOutput, evaluationResult, fixtureFor, sandboxImageFor, hookInputFor, hookMatcherMatches, interpretHookResult, validateHookRequest, validateRequest } from '../src/evaluator.mjs'
+import { boundedOutput, evaluationResult, fixtureFor, sandboxImageFor, hookInputFor, hookMatcherMatches, interpretHookResult, requestPath, validateHookRequest, validateRequest } from '../src/evaluator.mjs'
 
 test('accepts bounded valid code submissions', () => assert.equal(validateRequest({ lessonSlug: 'python-functions', code: 'def greet(name): return name' }), null))
 
@@ -186,4 +186,12 @@ test('every image a runtime can map to has a Dockerfile', async () => {
   const { existsSync } = await import('node:fs')
   for (const repository of ['dotnet', 'rust', 'node', 'tools'])
     assert.ok(existsSync(new URL(`../images/${repository}/Dockerfile`, import.meta.url)), `images/${repository}/Dockerfile`)
+})
+
+test('routes on the path and ignores query strings', () => {
+  assert.equal(requestPath('/health'), '/health')
+  assert.equal(requestPath('/health?_vercel_share=abc'), '/health')
+  assert.equal(requestPath('/evaluate?x=1'), '/evaluate')
+  assert.equal(requestPath('/evaluate-hook#frag'), '/evaluate-hook')
+  assert.equal(requestPath(undefined), '/')
 })

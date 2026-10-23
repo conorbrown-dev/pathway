@@ -2,7 +2,7 @@ import http from 'node:http'
 import crypto from 'node:crypto'
 import { Readable } from 'node:stream'
 import { Sandbox } from '@vercel/sandbox'
-import { boundedOutput, evaluationResult, fixtureFor, hookInputFor, hookMatcherMatches, interpretHookResult, sandboxImageFor, validateHookRequest, validateRequest } from './evaluator.mjs'
+import { boundedOutput, evaluationResult, fixtureFor, hookInputFor, hookMatcherMatches, interpretHookResult, requestPath, sandboxImageFor, validateHookRequest, validateRequest } from './evaluator.mjs'
 
 const port = Number(process.env.PORT ?? 8080)
 // Fly's private network is IPv6-only, so deployments there set HOST=::. Default to IPv4 so the
@@ -101,10 +101,11 @@ async function evaluateHook(payload, token) {
 }
 
 http.createServer(async (request, response) => {
-  if (request.method === 'GET' && request.url === '/health')
+  const path = requestPath(request.url)
+  if (request.method === 'GET' && path === '/health')
     return reply(response, configured ? 200 : 503, { status: configured ? 'ok' : 'misconfigured', provider: 'vercel-sandbox' })
 
-  if (request.method !== 'POST' || !['/evaluate', '/evaluate-hook'].includes(request.url))
+  if (request.method !== 'POST' || !['/evaluate', '/evaluate-hook'].includes(path))
     return reply(response, 404, { message: 'Not found.' })
 
   if (!isAuthorized(request)) return reply(response, 401, { message: 'Unauthorized.' })
@@ -114,7 +115,7 @@ http.createServer(async (request, response) => {
 
   try {
     const payload = await readBody(request)
-    if (request.url === '/evaluate-hook') {
+    if (path === '/evaluate-hook') {
       const issue = validateHookRequest(payload)
       if (issue) return reply(response, 400, { message: issue })
       return reply(response, 200, await evaluateHook(payload, token))

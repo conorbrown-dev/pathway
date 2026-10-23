@@ -416,6 +416,15 @@ const SANDBOX_IMAGES = {
   hook: 'tools',
 }
 
+/** The request path without its query string, so `/health?probe=1` still routes to `/health`. */
+export function requestPath(url = '/') {
+  try {
+    return new URL(url, 'http://broker.invalid').pathname
+  } catch {
+    return url
+  }
+}
+
 export function sandboxImageFor(runtime, tag = 'latest') {
   return `${SANDBOX_IMAGES[runtime] ?? 'dotnet'}:${tag}`
 }
