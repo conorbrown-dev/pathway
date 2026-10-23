@@ -161,14 +161,15 @@ type Workspace =
   "learn" | "practice" | "projects" | "dashboard" | "community" | "coach";
 const api = import.meta.env.VITE_API_BASE_URL ?? "";
 const donationUrl = import.meta.env.VITE_DONATION_URL?.trim();
+// Orange is the default; the first entry is also the fallback for unknown stored values.
 const accentOptions = [
+  { id: "orange", label: "Orange", value: "#ff9138" },
   { id: "purple", label: "Purple", value: "#b981ff" },
   { id: "pink", label: "Pink", value: "#ff4fa3" },
   { id: "green", label: "Green", value: "#42f58d" },
   { id: "cyan", label: "Cyan", value: "#28dfff" },
   { id: "red", label: "Red", value: "#ff4d5f" },
   { id: "yellow", label: "Yellow", value: "#ffe34f" },
-  { id: "orange", label: "Orange", value: "#ff9138" },
 ];
 const applyAccent = (accent: string) => {
   const color =
@@ -265,7 +266,7 @@ function App() {
     });
   }, [courseId, lesson?.slug, workspace]);
   useEffect(
-    () => applyAccent(localStorage.getItem("pathway-accent") ?? "purple"),
+    () => applyAccent(localStorage.getItem("pathway-accent") ?? "orange"),
     [],
   );
   useEffect(() => {
@@ -415,6 +416,10 @@ function App() {
         headers: apiHeaders(account),
         body: JSON.stringify({ lessonSlug: lesson.slug, answer, code, unit, meterMode, redProbe, blackProbe, diagnosis }),
       });
+      if (response.status === 401 && !account) {
+        notify("Sign in to run code exercises. Your guest progress stays on this device.");
+        return;
+      }
       if (!response.ok) throw Error();
       const next: Result = await response.json();
       setResult(next);
@@ -1212,7 +1217,7 @@ function ProfileMenu({
 
 function ThemePicker() {
   const [accent, setAccent] = useState(
-    () => localStorage.getItem("pathway-accent") ?? "purple",
+    () => localStorage.getItem("pathway-accent") ?? "orange",
   );
   useEffect(() => {
     applyAccent(accent);
