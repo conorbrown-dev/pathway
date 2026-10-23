@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Pathway.Api;
 using Xunit;
@@ -25,7 +26,7 @@ public sealed class GuestAccessTests : IClassFixture<GuestAccessTests.KeycloakCo
             Environment.SetEnvironmentVariable("KEYCLOAK_AUDIENCE", "pathway-api");
         }
 
-        protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder) =>
+        protected override void ConfigureWebHost(IWebHostBuilder builder) =>
             builder.UseEnvironment("Production");
     }
 
