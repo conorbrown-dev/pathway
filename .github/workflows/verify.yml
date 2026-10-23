@@ -7,6 +7,7 @@ on:
     paths:
       - 'frontend/**'
       - 'backend/Pathway.Api/**'
+      - 'backend/Pathway.Api.Tests/**'
       - 'evaluator/Pathway.Evaluator/**'
       - 'infra/keycloak/**'
       - 'modal-broker/**'
@@ -46,6 +47,8 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet restore
       - run: dotnet build --no-restore --configuration Release
+      - name: Curriculum invariant tests
+        run: dotnet test ../Pathway.Api.Tests --configuration Release --logger "console;verbosity=normal"
 
   evaluator:
     name: Evaluator build

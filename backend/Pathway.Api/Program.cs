@@ -1200,7 +1200,18 @@ static partial class Curriculum
             .ToArray();
     }
 
-    private static Course BuildCourse(string id, string title, string languageId, string languageVersion, string frameworkVersion, string reviewed, Lesson[] lessons) => new(id, title, languageId, languageVersion, frameworkVersion, reviewed, BuildModules(lessons));
+    private static Course BuildCourse(string id, string title, string languageId, string languageVersion, string frameworkVersion, string reviewed, Lesson[] lessons) => new(id, title, languageId, languageVersion, frameworkVersion, reviewed, BuildModules(EnsureComplete(id, lessons)));
+
+    // Curriculum is assembled from static fields across partial-class files, whose initialization
+    // order follows file order. A reference to a not-yet-initialized field silently yields null, so
+    // fail at startup instead of serving lessons the frontend cannot render.
+    private static Lesson[] EnsureComplete(string courseId, Lesson[] lessons)
+    {
+        var incomplete = lessons.Where(lesson => lesson.Version is null || lesson.Exercise is null).Select(lesson => lesson.Slug).ToArray();
+        if (incomplete.Length > 0)
+            throw new InvalidOperationException($"Course '{courseId}' has lessons without a version stamp or exercise: {string.Join(", ", incomplete)}.");
+        return lessons;
+    }
 
     private static IReadOnlyList<Module> BuildModules(Lesson[] lessons)
     {
