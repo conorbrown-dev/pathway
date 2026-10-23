@@ -18,10 +18,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  # Until the Fly apps exist and FLY_API_TOKEN is set (docs/migrate-off-railway.md), skip
+  # deploys with a notice instead of failing every push to main.
+  preflight:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      ready: ${{ steps.token.outputs.ready }}
+    steps:
+      - id: token
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -n "$FLY_API_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::FLY_API_TOKEN is not set; skipping Fly.io deploys. See docs/migrate-off-railway.md."
+          fi
+
+  deploy:
+    needs: preflight
+    if: needs.preflight.outputs.ready == 'true'
     name: Deploy ${{ matrix.app }}
     runs-on: ubuntu-latest
     environment: production
