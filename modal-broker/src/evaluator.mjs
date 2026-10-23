@@ -1,4 +1,28 @@
+import { readFileSync } from 'node:fs'
+
 const MAX_CODE_BYTES = 50_000
+
+// Kubernetes lessons are checked without a cluster: the sandbox parses manifests with PyYAML and
+// checks object semantics and kubectl intent (see kube_check.py).
+const KUBE_CHECKER = readFileSync(new URL('./kube_check.py', import.meta.url), 'utf8')
+const KUBE_TESTS = {
+  'k8s-yaml-api-objects': 3,
+  'k8s-kubectl-contexts': 2,
+  'k8s-labels-selectors': 3,
+  'k8s-deployments-replicasets': 4,
+  'k8s-services': 3,
+  'k8s-resources-qos': 3,
+  'k8s-debugging': 4,
+}
+
+function kubeFixture(lessonSlug, code) {
+  return {
+    files: { 'kube_check.py': KUBE_CHECKER, 'submission.txt': code },
+    command: ['python3', '-I', '/workspace/kube_check.py', lessonSlug, '/workspace/submission.txt'],
+    tests: KUBE_TESTS[lessonSlug],
+    runtime: 'kubernetes',
+  }
+}
 
 export function validateRequest(value) {
   if (!value || typeof value.lessonSlug !== 'string' || typeof value.code !== 'string') return 'lessonSlug and code are required.'
@@ -166,6 +190,7 @@ declare module 'vitest' {
 }
 
 export function fixtureFor(lessonSlug, code) {
+  if (Object.hasOwn(KUBE_TESTS, lessonSlug)) return kubeFixture(lessonSlug, code)
   switch (lessonSlug) {
     case 'python-functions':
       return {
