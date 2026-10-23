@@ -79,10 +79,13 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -m pip install pyyaml==6.0.3
+      # Same toolchain as sandbox-broker/images/rust, so fixture tests compile like the sandbox does.
+      - run: rustup toolchain install 1.97.0 --profile minimal && rustup default 1.97.0 && rustc --version
       - run: npm ci
       - run: npm test
         env:
           PATHWAY_REQUIRE_PYYAML: '1'
+          PATHWAY_REQUIRE_RUSTC: '1'
 
   browser-e2e:
     name: Complete local browser E2E suite

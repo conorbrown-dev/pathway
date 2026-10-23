@@ -212,6 +212,54 @@ export function fixtureFor(lessonSlug, code) {
         tests: 2,
         runtime: 'rust',
       }
+    case 'rust-structs-enums':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    let invited = Enrollment::Invited { email: String::from("ada@example.com") };
+    assert_eq!(summary(&invited), "invited ada@example.com", "summary of an invitation");
+    let active = accept(invited);
+    assert_eq!(summary(&active), "active 0", "accepting an invitation starts at zero lessons");
+    let active = complete_lesson(complete_lesson(active));
+    assert_eq!(summary(&active), "active 2", "completing lessons counts each one");
+    let cancelled = complete_lesson(Enrollment::Cancelled { reason: String::from("moved") });
+    assert_eq!(summary(&cancelled), "cancelled moved", "a cancelled enrollment cannot complete lessons");
+    let still_cancelled = accept(Enrollment::Cancelled { reason: String::from("duplicate") });
+    assert_eq!(summary(&still_cancelled), "cancelled duplicate", "accepting does not revive a cancelled enrollment");
+    let still_active = accept(Enrollment::Active { email: String::from("lin@example.com"), completed: 5 });
+    assert_eq!(summary(&still_active), "active 5", "accepting an active enrollment leaves it unchanged");
+    let invited_again = complete_lesson(Enrollment::Invited { email: String::from("sam@example.com") });
+    assert_eq!(summary(&invited_again), "invited sam@example.com", "an invitation cannot complete lessons");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-traits-generics':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    assert_eq!(Seat { learners: 1 }.monthly_cents(), 900, "one seat costs 900 cents");
+    assert_eq!(Workspace { flat_cents: 125 }.monthly_cents(), 125, "a workspace costs its flat amount");
+    let seats = [Seat { learners: 3 }, Seat { learners: 1 }];
+    assert_eq!(total_cents(&seats), 3_600, "total_cents adds up one type of item");
+    let workspaces = [Workspace { flat_cents: 5_000 }, Workspace { flat_cents: 250 }];
+    assert_eq!(total_cents(&workspaces), 5_250, "total_cents works for every Billable type");
+    let none: [Workspace; 0] = [];
+    assert_eq!(total_cents(&none), 0, "an empty list costs nothing");
+    let mixed: Vec<Box<dyn Billable>> = vec![Box::new(Seat { learners: 2 }), Box::new(Workspace { flat_cents: 5_000 })];
+    assert_eq!(total_mixed(&mixed), 6_800, "total_mixed adds up different types through dyn Billable");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
     case 'foundations-making-decisions':
       return {
         files: {

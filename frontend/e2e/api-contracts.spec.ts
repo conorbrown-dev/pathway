@@ -495,7 +495,8 @@ test.describe('public API contract', () => {
     }))
 
     const questions = lessons.filter(lesson => lesson.exercise.kind === 'MultipleChoice')
-    expect(questions.length).toBeGreaterThan(30)
+    // No count: the Rust rewrite moves lessons from multiple choice to graded code on purpose.
+    expect(questions.length).toBeGreaterThan(0)
     for (const lesson of questions) {
       expect(lesson.exercise.prompt).toMatch(/\?$/)
       expect(lesson.exercise.choices.length).toBeGreaterThan(1)
