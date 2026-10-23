@@ -122,3 +122,21 @@ jobs:
       - uses: actions/checkout@v4
       - run: python3 -m json.tool infra/keycloak/realm-import/pathway-realm.json > /dev/null
       - run: docker compose --env-file .env.keycloak.example -f docker-compose.keycloak.yml config > /dev/null
+
+  container-images:
+    name: Container images build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            context: backend/Pathway.Api
+          - name: broker
+            context: modal-broker
+          - name: keycloak
+            context: infra/keycloak
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ${{ matrix.name }} image (no push)
+        run: docker build --tag pathway-${{ matrix.name }}:ci ${{ matrix.context }}

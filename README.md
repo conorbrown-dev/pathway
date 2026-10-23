@@ -46,7 +46,11 @@ npm run test:e2e
 
 The suite verifies API health/current curriculum metadata and that a guest learner can load and interact with the first lesson. It intentionally does not create production accounts or execute code exercises.
 
-## Deploy on Railway
+## Hosting
+
+Pathway is moving off Railway after Railway's October 2026 security incident: Vercel for the frontend, Fly.io for the API, Keycloak and evaluator broker, and Neon for Postgres. Follow [Migrating Pathway off Railway](docs/migrate-off-railway.md). The Railway sections below remain accurate for the current production deployment until cutover.
+
+## Deploy on Railway (legacy)
 
 See [Railway + GitHub setup](docs/railway-github-setup.md) for the one-time production service configuration and push-to-deploy checklist. Use the [Railway staging setup](docs/railway-staging-setup.md) to create an isolated environment and run pre-production smoke checks.
 Use the [production launch runbook](docs/launch-runbook.md) before opening the service to public learners.

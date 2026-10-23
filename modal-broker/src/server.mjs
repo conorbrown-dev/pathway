@@ -4,6 +4,9 @@ import { ModalClient } from 'modal'
 import { boundedOutput, evaluationResult, fixtureFor, hookInputFor, hookMatcherMatches, interpretHookResult, validateHookRequest, validateRequest } from './evaluator.mjs'
 
 const port = Number(process.env.PORT ?? 8080)
+// Fly's private network is IPv6-only, so deployments there set HOST=::. Default to IPv4 so the
+// broker still starts on hosts without IPv6.
+const host = process.env.HOST ?? '0.0.0.0'
 const sharedSecret = process.env.RUNNER_SHARED_SECRET
 const modalTokenId = process.env.MODAL_TOKEN_ID
 const modalTokenSecret = process.env.MODAL_TOKEN_SECRET
@@ -117,4 +120,4 @@ http.createServer(async (request, response) => {
     console.error('Modal sandbox evaluation failed.', error)
     return reply(response, 503, { message: 'The isolated evaluator is temporarily unavailable.' })
   }
-}).listen(port, '0.0.0.0', () => console.log(`Modal evaluator broker listening on ${port}`))
+}).listen(port, host, () => console.log(`Modal evaluator broker listening on ${host}:${port}`))

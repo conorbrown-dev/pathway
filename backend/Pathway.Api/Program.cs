@@ -32,7 +32,7 @@ builder.Services.AddRateLimiter(options =>
 });
 var databaseUrl = builder.Configuration["DATABASE_URL"] ?? builder.Configuration.GetConnectionString("Pathway");
 if (!string.IsNullOrWhiteSpace(databaseUrl))
-    builder.Services.AddDbContextFactory<ProgressDbContext>(options => options.UseNpgsql(ToNpgsqlConnectionString(databaseUrl)));
+    builder.Services.AddDbContextFactory<ProgressDbContext>(options => options.UseNpgsql(DatabaseConnection.ToNpgsql(databaseUrl)));
 var allowedOrigins = (builder.Configuration["CORS_ORIGINS"] ?? "http://localhost:5173,http://127.0.0.1:5173")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
@@ -279,14 +279,6 @@ static RateLimitPartition<string> LearnerWindow(HttpContext context, int permitL
         QueueLimit = 0,
         AutoReplenishment = true
     });
-}
-
-static string ToNpgsqlConnectionString(string value)
-{
-    if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || (uri.Scheme != "postgres" && uri.Scheme != "postgresql")) return value;
-    var userInfo = uri.UserInfo.Split(':', 2);
-    var builder = new Npgsql.NpgsqlConnectionStringBuilder { Host = uri.Host, Port = uri.Port, Database = uri.AbsolutePath.Trim('/'), Username = Uri.UnescapeDataString(userInfo[0]), Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty, SslMode = Npgsql.SslMode.Require };
-    return builder.ConnectionString;
 }
 
 static async Task EnsureLearningExperienceSchema(ProgressDbContext database) => await database.Database.ExecuteSqlRawAsync("""

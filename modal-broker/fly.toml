@@ -1,0 +1,29 @@
+# Fly.io app for the private Modal evaluator broker. It has no [http_service], so Fly allocates
+# no public IP; the API reaches it at http://pathway-broker.internal:8080 over the private network.
+#   fly deploy --config modal-broker/fly.toml modal-broker
+# Secrets: MODAL_TOKEN_ID, MODAL_TOKEN_SECRET, RUNNER_SHARED_SECRET (same value as the API's
+# EVALUATOR_SHARED_SECRET).
+app = "pathway-broker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  # Bind the private IPv6 network (6PN) as well as IPv4.
+  HOST = "::"
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 8080
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "256mb"
