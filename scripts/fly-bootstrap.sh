@@ -26,6 +26,18 @@ prompt_secret() {
   printf '%s' "$value"
 }
 
+require_direct_postgres_url() {
+  local url="$1" label="$2" rest
+  case "$url" in
+    postgres://*@*/*|postgresql://*@*/*) ;;
+    *) echo "$label: expected postgresql://user:password@host/database" >&2; exit 1 ;;
+  esac
+  rest="${url#*@}"
+  case "${rest%%/*}" in
+    *-pooler.*) echo "$label: that is the pooled (-pooler) host. Use DATABASE_URL_UNPOOLED; Keycloak's migrations need a direct connection." >&2; exit 1 ;;
+  esac
+}
+
 echo "== Creating apps in org '$ORG' (existing apps are reused)"
 for app in "${APPS[@]}"; do
   if fly apps list --org "$ORG" --json | grep -q "\"Name\": *\"$app\""; then
@@ -39,19 +51,28 @@ echo
 echo "== Secrets"
 echo "Paste values from Neon and Modal. Input is hidden."
 echo
-echo "Pathway database (Neon project 'pathway', DIRECT connection string, postgresql://...):"
-PATHWAY_DATABASE_URL="$(prompt_secret DATABASE_URL)"
-echo "Keycloak database (Neon project 'pathway-auth'). Enter the JDBC form:"
-echo "  jdbc:postgresql://<direct-host>/<database>?sslmode=require"
-KC_DB_URL="$(prompt_secret KC_DB_URL)"
-KC_DB_USERNAME="$(prompt_secret KC_DB_USERNAME)"
-KC_DB_PASSWORD="$(prompt_secret KC_DB_PASSWORD)"
+echo "Paste each Neon DIRECT connection string: Vercel > Storage > <database> > .env.local tab,"
+echo "the DATABASE_URL_UNPOOLED value (postgresql://neondb_owner:...@ep-....neon.tech/neondb?sslmode=require)."
+PATHWAY_DATABASE_URL="$(prompt_secret 'pathway DATABASE_URL_UNPOOLED')"
+require_direct_postgres_url "$PATHWAY_DATABASE_URL" pathway
+AUTH_DATABASE_URL="$(prompt_secret 'pathway-auth DATABASE_URL_UNPOOLED')"
+require_direct_postgres_url "$AUTH_DATABASE_URL" pathway-auth
+# Keycloak takes JDBC form plus separate credentials; derive them from the URL.
+auth_rest="${AUTH_DATABASE_URL#*://}"
+auth_credentials="${auth_rest%%@*}"
+auth_location="${auth_rest#*@}"
+KC_DB_USERNAME="${auth_credentials%%:*}"
+KC_DB_PASSWORD="${auth_credentials#*:}"
+KC_DB_URL="jdbc:postgresql://${auth_location%%\?*}?sslmode=require"
 echo "Modal token (create a NEW one after revoking the old token):"
 MODAL_TOKEN_ID="$(prompt_secret MODAL_TOKEN_ID)"
 MODAL_TOKEN_SECRET="$(prompt_secret MODAL_TOKEN_SECRET)"
 
 RUNNER_SHARED_SECRET="$(openssl rand -base64 48 | tr -d '\n')"
 ANALYTICS_ADMIN_KEY="$(openssl rand -base64 48 | tr -d '\n')"
+# Keycloak creates this temporary admin only when its database is empty (a fresh start).
+KC_BOOTSTRAP_ADMIN_USERNAME="pathway-bootstrap"
+KC_BOOTSTRAP_ADMIN_PASSWORD="$(openssl rand -base64 32 | tr -d '\n/+=' | cut -c1-32)"
 
 fly secrets set --stage --app pathway-broker \
   MODAL_TOKEN_ID="$MODAL_TOKEN_ID" \
@@ -61,7 +82,9 @@ fly secrets set --stage --app pathway-broker \
 fly secrets set --stage --app pathway-auth \
   KC_DB_URL="$KC_DB_URL" \
   KC_DB_USERNAME="$KC_DB_USERNAME" \
-  KC_DB_PASSWORD="$KC_DB_PASSWORD"
+  KC_DB_PASSWORD="$KC_DB_PASSWORD" \
+  KC_BOOTSTRAP_ADMIN_USERNAME="$KC_BOOTSTRAP_ADMIN_USERNAME" \
+  KC_BOOTSTRAP_ADMIN_PASSWORD="$KC_BOOTSTRAP_ADMIN_PASSWORD"
 
 fly secrets set --stage --app pathway-api \
   DATABASE_URL="$PATHWAY_DATABASE_URL" \
@@ -70,12 +93,19 @@ fly secrets set --stage --app pathway-api \
 
 echo
 echo "== Done. Secrets are staged and apply on the first deploy."
+echo
+echo "Temporary Keycloak admin (shown once; store it in your password manager now):"
+echo "  username: $KC_BOOTSTRAP_ADMIN_USERNAME"
+echo "  password: $KC_BOOTSTRAP_ADMIN_PASSWORD"
+echo "After the first deploy, sign in at https://pathway-auth.orangecastle.net/admin, create a"
+echo "permanent admin user in the master realm, then delete pathway-bootstrap and run:"
+echo "  fly secrets unset --app pathway-auth KC_BOOTSTRAP_ADMIN_USERNAME KC_BOOTSTRAP_ADMIN_PASSWORD"
 echo "The analytics dashboard key was generated for you. Print it once with:"
 echo "  fly ssh console --app pathway-api -C 'printenv ANALYTICS_ADMIN_KEY'   (after the first deploy)"
 echo
 echo "Next:"
 echo "  1. Create a deploy token and add it to GitHub (Settings > Environments > production > FLY_API_TOKEN):"
 echo "       fly tokens create org --org $ORG"
-echo "  2. Migrate data (scripts/migrate-databases.sh), then run the 'Deploy to Fly.io' workflow."
+echo "  2. Run the 'Deploy to Fly.io' workflow (GitHub > Actions > Deploy to Fly.io > Run workflow)."
 echo "  3. fly certs add pathway-auth.orangecastle.net --app pathway-auth"
 echo "     fly certs add pathway-api.orangecastle.net --app pathway-api"

@@ -1,8 +1,8 @@
 # Fly.io app for Keycloak. Deploy from the repository root:
 #   fly deploy --config infra/keycloak/fly.toml infra/keycloak
 # Secrets: KC_DB_URL (jdbc:postgresql://<neon-direct-host>/keycloak?sslmode=require),
-# KC_DB_USERNAME, KC_DB_PASSWORD. KC_BOOTSTRAP_ADMIN_* are only needed for an empty database;
-# a migrated database already has its admin user.
+# KC_DB_USERNAME, KC_DB_PASSWORD, and for a fresh database KC_BOOTSTRAP_ADMIN_USERNAME and
+# KC_BOOTSTRAP_ADMIN_PASSWORD (a temporary admin; replace it, then unset both secrets).
 #
 # The public hostname is part of every token's issuer. Keep it on a domain you control
 # (pathway-auth.orangecastle.net) so future hosting moves do not invalidate the issuer again.
