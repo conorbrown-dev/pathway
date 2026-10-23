@@ -6,20 +6,20 @@
 - Open `https://<api-domain>/ready`; it must return `200` and `{"status":"ready"}`.
 - Create a disposable learner account and verify registration, sign-in, sign-out, persisted progress, a passing code submission, saved project work, and community posting.
 - Confirm the API uses the Modal broker private URL and that the broker has the current `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`, and `RUNNER_SHARED_SECRET`.
-- Confirm Keycloak redirect URIs and web origins list only the production web origin. Remove localhost entries from the production realm.
+- Confirm the Auth0 application's callback, logout and web-origin URLs list only the production origin. Use a separate Auth0 application for local development.
 
 ## Monitoring and response
 
-- Railway health checks cover `/` (Web), `/health` (Api and ModalBroker), and `/realms/master` (Keycloak). Monitor `GET /ready` separately because it verifies the application database.
-- Create uptime checks for the web root, API `/health`, API `/ready`, and the Keycloak realm endpoint. Alert the operator on two consecutive failures.
+- Vercel has no health checks for container functions. Monitor `GET /api/...` through the site and `GET /ready` on the API project, because `/ready` verifies the application database.
+- Create uptime checks for the web root, API `/health` and API `/ready`. Alert the operator on two consecutive failures. Expect the first check after an idle period to be slower, because containers scale to zero after 5 minutes.
 - Enable Railway log retention and configure an error-tracking provider before broad public traffic. Never send learner code, bearer tokens, authorization headers, or Modal credentials to telemetry.
 - Configure a Modal spend alert and a monthly budget ceiling. Review sandbox usage daily during the first launch week.
 
 ## Data protection and recovery
 
-- Keep the application Postgres and Keycloak Postgres databases separate.
+- Keep the application database on its own Neon project; identity data lives in Auth0.
 - Enable or schedule provider backups, retain at least seven daily restore points, and perform one documented restore rehearsal before launch.
-- Limit Railway project access to named operators, use MFA for Railway, GitHub, Modal, and Keycloak admins, and rotate service credentials after any suspected exposure.
+- Limit Vercel, Neon and Auth0 access to named operators, use MFA for Vercel, GitHub, Modal and Auth0 admins, and rotate service credentials after any suspected exposure.
 - The site has draft privacy, terms, and support pages. Replace the operator, legal entity, jurisdiction, retention, and security-contact placeholders after legal review.
 
 ## Operational controls

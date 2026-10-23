@@ -7,7 +7,7 @@ app = "pathway-broker"
 primary_region = "iad"
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "Dockerfile.vercel"
 
 [env]
   PORT = "8080"

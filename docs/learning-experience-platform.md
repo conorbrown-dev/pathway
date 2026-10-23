@@ -1,6 +1,6 @@
 # Learning-experience platform foundation
 
-This document describes the API foundation for the next-generation Pathway experience. It keeps learning data server-side and ties learner-owned data to the Keycloak subject in production.
+This document describes the API foundation for the next-generation Pathway experience. It keeps learning data server-side and ties learner-owned data to the Auth0 subject (`sub`) in production.
 
 ## Secure execution boundary
 
@@ -23,14 +23,14 @@ The API fails closed for progression if the evaluator is unavailable. It can sti
 
 ## API capabilities
 
-All `/api/experience/*` endpoints require Keycloak authentication in production. Guest endpoints work locally when Keycloak is intentionally not configured.
+All `/api/experience/*` endpoints require an Auth0 access token in production. Guest endpoints work locally when authentication is intentionally not configured.
 
 - `GET /dashboard` — completed lessons, streak, projects, recent work, and review queue.
 - `GET /reviews` and `POST /reviews/{lessonSlug}/complete` — spaced-repetition items with 1, 2, 4…30-day intervals.
 - `GET /projects/templates`, `POST /projects/{templateId}`, `GET /projects/{id}`, and `PUT /projects/{id}/files/{path}` — multi-file project workspace persistence.
 - `GET`/`POST /assessments/{courseId}/{moduleId}` — module checkpoints and targeted lesson recommendations.
 - `POST /coach` — guided, secret-aware coaching that refuses copy-paste answers.
-- Community endpoints — bounded posts, mentor-request flag, and replies. Mentor status comes from the Keycloak `mentor` role.
+- Community endpoints — bounded posts, mentor-request flag, and replies. Mentor status comes from the Auth0 `mentor` permission (RBAC with permissions in the access token; see `docs/hosting.md`).
 
 ## Rollout
 

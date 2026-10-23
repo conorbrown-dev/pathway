@@ -3,13 +3,7 @@ import Editor, { loader } from "@monaco-editor/react";
 import "./onboarding.css";
 import { ExperienceHub } from "./ExperienceHub";
 import { getAnonymousLearnerId, trackActivity, trackActivityOnce } from "./analytics";
-import {
-  initializeKeycloak,
-  keycloak,
-  keycloakConfigured,
-  loginWithKeycloak,
-  logoutFromKeycloak,
-} from "./keycloak";
+import { authConfigured, initializeAuth, login, logout as signOut, refreshToken } from "./auth";
 import {
   ArrowLeft,
   ArrowRight,
@@ -233,7 +227,7 @@ function App() {
   );
   const [account, setAccount] = useState<Account | null>(null);
   const progressOwner = account
-    ? `keycloak:${account.subject}`
+    ? `user:${account.subject}`
     : `guest:${learnerId}`;
   const accountIdentity = account?.subject || "guest";
   const [onboarding, setOnboarding] = useState(
@@ -278,19 +272,16 @@ function App() {
     window.setTimeout(() => setToast(""), 2600);
   };
   useEffect(() => {
-    initializeKeycloak()
+    initializeAuth()
       .then(setAccount)
-      .catch(() => notify("Keycloak sign-in could not be initialized."));
+      .catch(() => notify("Sign-in could not be initialized."));
   }, []);
   useEffect(() => {
-    const client = keycloak;
-    if (!client || !account) return;
+    if (!authConfigured || !account) return;
     const refresh = window.setInterval(
       () =>
-        client
-          .updateToken(60)
-          .then(() => {
-            const refreshedToken = client.token;
+        refreshToken()
+          .then((refreshedToken) => {
             if (refreshedToken)
               setAccount((current) =>
                 current && current.token !== refreshedToken
@@ -300,7 +291,7 @@ function App() {
           })
           .catch(() => {
             setAccount(null);
-            void loginWithKeycloak(false);
+            void login(false);
           }),
       30_000,
     );
@@ -504,7 +495,7 @@ function App() {
   const logout = () => {
     setCompleted(readProgress(`guest:${learnerId}`));
     setAccount(null);
-    void logoutFromKeycloak();
+    void signOut();
   };
   if (
     workspace === "dashboard" ||
@@ -559,7 +550,7 @@ function App() {
                 <ProfileMenu account={account} onLogout={logout} />
               ) : (
                 <button
-                  onClick={() => void loginWithKeycloak(false)}
+                  onClick={() => void login(false)}
                   className="hidden rounded-md border border-[#7652a6] px-3 py-1.5 text-xs font-semibold text-[#e2d3ff] hover:bg-[#7a43c52b] sm:block"
                 >
                   Sign in
@@ -646,7 +637,7 @@ function App() {
               <ProfileMenu account={account} onLogout={logout} />
             ) : (
               <button
-                onClick={() => void loginWithKeycloak(false)}
+                onClick={() => void login(false)}
                 className="hidden rounded-md border border-[#7652a6] px-3 py-1.5 text-xs font-semibold text-[#e2d3ff] hover:bg-[#7a43c52b] sm:block"
               >
                 Sign in
@@ -736,20 +727,18 @@ function Onboarding({
 }) {
   const [mode, setMode] = useState<"welcome" | "register" | "login">("welcome");
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const authenticate = async () => {
     setError("");
     setSubmitting(true);
     try {
-      if (!keycloakConfigured)
+      if (!authConfigured)
         throw new Error(
-          "Keycloak is not configured yet. Add the VITE_KEYCLOAK_URL, VITE_KEYCLOAK_REALM, and VITE_KEYCLOAK_CLIENT_ID variables.",
+          "Sign-in is not configured yet. Add the VITE_AUTH0_DOMAIN, VITE_AUTH0_CLIENT_ID, and VITE_AUTH0_AUDIENCE variables.",
         );
       localStorage.setItem("pathway-onboarding-complete", "true");
-      await loginWithKeycloak(mode === "register");
+      await login(mode === "register");
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : "Something went wrong.",
@@ -1092,30 +1081,11 @@ function Onboarding({
                   />
                 </label>
               )}
-              <label className="grid gap-1.5 text-xs font-semibold text-[#c5bdd2]">
-                Email
-                <input
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  className="onboarding-input rounded-lg px-3 py-3 text-sm outline-none"
-                />
-              </label>
-              <label className="grid gap-1.5 text-xs font-semibold text-[#c5bdd2]">
-                Password
-                <input
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  type="password"
-                  autoComplete={
-                    mode === "login" ? "current-password" : "new-password"
-                  }
-                  placeholder="At least 10 characters"
-                  className="onboarding-input rounded-lg px-3 py-3 text-sm outline-none"
-                />
-              </label>
+              <p className="text-xs leading-relaxed text-[#c5bdd2]">
+                {mode === "login"
+                  ? "You'll sign in on Pathway's secure sign-in page, then return here."
+                  : "You'll create your account on Pathway's secure sign-in page, then return here."}
+              </p>
               {error && (
                 <p className="rounded-lg border border-[#ff659655] bg-[#ff4d8215] px-3 py-2 text-xs text-[#ffb3cc]">
                   {error}

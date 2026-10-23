@@ -5,13 +5,14 @@ app = "pathway-api"
 primary_region = "iad"
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "Dockerfile.vercel"
 
 [env]
   ASPNETCORE_ENVIRONMENT = "Production"
   CORS_ORIGINS = "https://pathway.orangecastle.net"
-  KEYCLOAK_AUTHORITY = "https://pathway-auth.orangecastle.net/realms/pathway"
-  KEYCLOAK_AUDIENCE = "pathway-api"
+  AUTH_AUTHORITY = "https://<auth0-tenant-domain>/"
+  AUTH_AUDIENCE = "https://api.pathway.orangecastle.net"
+  TRUST_PROXY_HEADERS = "true"
   # Private Fly network address of the evaluator broker (no public route exists).
   EVALUATOR_URL = "http://pathway-broker.internal:8080"
 

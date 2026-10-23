@@ -30,30 +30,52 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("coach", context => FixedWindow(context, permitLimit: developmentLimit ?? 20));
     options.AddPolicy("community-write", context => FixedWindow(context, permitLimit: developmentLimit ?? 15));
 });
-var databaseUrl = builder.Configuration["DATABASE_URL"] ?? builder.Configuration.GetConnectionString("Pathway");
+// Prefer a direct (non-pooled) connection when the host provides one, as Neon/Vercel do.
+var databaseUrl = builder.Configuration["DATABASE_URL_UNPOOLED"] ?? builder.Configuration["DATABASE_URL"] ?? builder.Configuration.GetConnectionString("Pathway");
 if (!string.IsNullOrWhiteSpace(databaseUrl))
     builder.Services.AddDbContextFactory<ProgressDbContext>(options => options.UseNpgsql(DatabaseConnection.ToNpgsql(databaseUrl)));
 var allowedOrigins = (builder.Configuration["CORS_ORIGINS"] ?? "http://localhost:5173,http://127.0.0.1:5173")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddAuthorization();
-var keycloakAuthority = builder.Configuration["KEYCLOAK_AUTHORITY"]?.TrimEnd('/');
-var keycloakAudience = builder.Configuration["KEYCLOAK_AUDIENCE"];
-if (builder.Environment.IsProduction() && (string.IsNullOrWhiteSpace(keycloakAuthority) || string.IsNullOrWhiteSpace(keycloakAudience)))
-    throw new InvalidOperationException("KEYCLOAK_AUTHORITY and KEYCLOAK_AUDIENCE are required in production.");
-var keycloakConfigured = !string.IsNullOrWhiteSpace(keycloakAuthority) && !string.IsNullOrWhiteSpace(keycloakAudience);
-if (keycloakConfigured)
+// Any OIDC provider that issues JWT access tokens (Auth0 in production). AUTH_AUTHORITY is the
+// issuer, e.g. https://<tenant>.us.auth0.com/; AUTH_AUDIENCE is the API identifier.
+var authAuthority = builder.Configuration["AUTH_AUTHORITY"];
+var authAudience = builder.Configuration["AUTH_AUDIENCE"];
+if (builder.Environment.IsProduction() && (string.IsNullOrWhiteSpace(authAuthority) || string.IsNullOrWhiteSpace(authAudience)))
+    throw new InvalidOperationException("AUTH_AUTHORITY and AUTH_AUDIENCE are required in production.");
+var authConfigured = !string.IsNullOrWhiteSpace(authAuthority) && !string.IsNullOrWhiteSpace(authAudience);
+if (authConfigured)
 {
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
     {
-        options.Authority = keycloakAuthority;
-        options.Audience = keycloakAudience;
+        options.Authority = authAuthority;
+        options.Audience = authAudience;
         options.MapInboundClaims = false;
+        // Roles such as "mentor" are read from this claim. Auth0 RBAC with "Add Permissions in the
+        // Access Token" emits a flat "permissions" array, which IsInRole can match directly.
+        options.TokenValidationParameters.RoleClaimType = builder.Configuration["AUTH_ROLE_CLAIM"] ?? "permissions";
         options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
     });
 }
 
+// Behind Vercel (or another proxy) every request arrives from the proxy's address. When
+// TRUST_PROXY_HEADERS=true, use X-Forwarded-For/-Proto so per-IP rate limits key on the client.
+// Only enable this where the proxy is the sole way to reach the app (as with Vercel Functions).
+if (string.Equals(builder.Configuration["TRUST_PROXY_HEADERS"], "true", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+        options.ForwardLimit = 1;
+        options.KnownIPNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+}
+
 var app = builder.Build();
+if (string.Equals(builder.Configuration["TRUST_PROXY_HEADERS"], "true", StringComparison.OrdinalIgnoreCase))
+    app.UseForwardedHeaders();
 app.UseExceptionHandler(exceptionApp => exceptionApp.Run(async context =>
 {
     context.Response.StatusCode = StatusCodes.Status500InternalServerError;
@@ -71,7 +93,7 @@ app.Use(async (context, next) =>
 });
 app.UseCors();
 app.UseRateLimiter();
-if (!string.IsNullOrWhiteSpace(keycloakAuthority) && !string.IsNullOrWhiteSpace(keycloakAudience))
+if (authConfigured)
 {
     app.UseAuthentication();
     app.UseAuthorization();
@@ -114,7 +136,7 @@ var submissionEndpoint = app.MapPost("/api/submissions/validate", async (Submiss
     if (!Curriculum.BySlug.TryGetValue(submission.LessonSlug, out var lesson)) return Results.NotFound();
     // Guests may answer every exercise that is checked in-process. Code exercises start a
     // sandbox per submission, so they require an account once authentication is configured.
-    if (keycloakConfigured && lesson.Exercise.Kind == ExerciseKind.Code && !LearnerIdentity.IsAuthenticated(httpContext.User))
+    if (authConfigured && lesson.Exercise.Kind == ExerciseKind.Code && !LearnerIdentity.IsAuthenticated(httpContext.User))
         return Results.Problem("Sign in to run code exercises. Your guest progress stays on this device.", statusCode: StatusCodes.Status401Unauthorized, title: "Sign-in required");
     if ((submission.Answer?.Length ?? 0) > 200 || (submission.Unit?.Length ?? 0) > 20 || (submission.MeterMode?.Length ?? 0) > 30 || (submission.RedProbe?.Length ?? 0) > 50 || (submission.BlackProbe?.Length ?? 0) > 50 || (submission.Diagnosis?.Length ?? 0) > 100 || Encoding.UTF8.GetByteCount(submission.Code ?? string.Empty) > 50_000)
         return Results.BadRequest(new { message = "Answers must be under 200 characters, units under 20 characters, and code at most 50 KB." });
@@ -229,7 +251,7 @@ hookPlaygroundEndpoint.RequireRateLimiting("submission");
 var experienceEndpoints = app.MapLearningExperienceEndpoints();
 // Progress and submissions stay open to guests (keyed by a namespaced guest ID); the richer
 // learning-experience endpoints (workspaces, community, coach) still require an account.
-if (keycloakConfigured) experienceEndpoints.RequireAuthorization();
+if (authConfigured) experienceEndpoints.RequireAuthorization();
 // Curriculum statics initialize lazily; touch them now so malformed content fails the deploy
 // (Railway health check) instead of the first learner request.
 _ = Curriculum.Courses.Count;

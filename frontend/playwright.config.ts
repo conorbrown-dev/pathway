@@ -24,9 +24,9 @@ export default defineConfig({
         env: {
           ...process.env,
           VITE_API_BASE_URL: viteApiBaseUrl,
-          VITE_KEYCLOAK_URL: '',
-          VITE_KEYCLOAK_REALM: '',
-          VITE_KEYCLOAK_CLIENT_ID: '',
+          VITE_AUTH0_DOMAIN: '',
+          VITE_AUTH0_CLIENT_ID: '',
+          VITE_AUTH0_AUDIENCE: '',
         },
         url: 'http://127.0.0.1:5173',
         reuseExistingServer: !process.env.CI,
