@@ -154,3 +154,15 @@ test('interprets silent exit zero as no hook decision', () => {
   const result = interpretHookResult(inputJson, true, 0, '', '')
   assert.equal(result.outcome, 'no_decision')
 })
+
+test('has isolated Kubernetes fixtures for every Kubernetes coding exercise', () => {
+  const lessons = ['k8s-yaml-api-objects', 'k8s-kubectl-contexts', 'k8s-labels-selectors', 'k8s-deployments-replicasets', 'k8s-services', 'k8s-resources-qos', 'k8s-debugging']
+  for (const lessonSlug of lessons) {
+    const fixture = fixtureFor(lessonSlug, 'kind: Pod')
+    assert.ok(fixture, `missing fixture for ${lessonSlug}`)
+    assert.equal(fixture.runtime, 'kubernetes')
+    assert.ok(fixture.tests > 0)
+    assert.match(fixture.files['kube_check.py'], /PATHWAY_TEST_PASS/)
+    assert.deepEqual(fixture.command.slice(-2), [lessonSlug, '/workspace/submission.txt'])
+  }
+})

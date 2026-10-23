@@ -86,6 +86,7 @@ async function evaluateHook(payload) {
 }
 function modalImage(modal, runtime) {
   if (runtime === 'rust') return modal.images.fromRegistry('rust:1.97-slim')
+  if (runtime === 'kubernetes') return modal.images.fromRegistry('python:3.13-slim').dockerfileCommands(['RUN pip install --no-cache-dir pyyaml==6.0.3'])
   if (runtime === 'git') return modal.images.fromRegistry('debian:bookworm-slim').dockerfileCommands(['RUN apt-get update && apt-get install -y --no-install-recommends bash git coreutils grep && rm -rf /var/lib/apt/lists/*'])
   if (runtime === 'sqlite') return modal.images.fromRegistry('debian:bookworm-slim').dockerfileCommands(['RUN apt-get update && apt-get install -y --no-install-recommends bash sqlite3 coreutils grep && rm -rf /var/lib/apt/lists/*'])
   if (runtime === 'linux') return modal.images.fromRegistry('debian:bookworm-slim').dockerfileCommands(['RUN apt-get update && apt-get install -y --no-install-recommends bash coreutils grep findutils sed gawk tar gzip vim && rm -rf /var/lib/apt/lists/*'])
