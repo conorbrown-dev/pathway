@@ -9,7 +9,7 @@ on:
       - 'backend/Pathway.Api/**'
       - 'backend/Pathway.Api.Tests/**'
       - 'evaluator/Pathway.Evaluator/**'
-      - 'modal-broker/**'
+      - 'sandbox-broker/**'
       - '.github/workflows/verify.yml'
 
 permissions:
@@ -62,19 +62,19 @@ jobs:
       - run: dotnet restore
       - run: dotnet build --no-restore --configuration Release
 
-  modal-broker:
-    name: Modal broker tests
+  sandbox-broker:
+    name: Sandbox broker tests
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: modal-broker
+        working-directory: sandbox-broker
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: modal-broker/package-lock.json
+          cache-dependency-path: sandbox-broker/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -129,7 +129,7 @@ jobs:
           - name: api
             context: backend/Pathway.Api
           - name: broker
-            context: modal-broker
+            context: sandbox-broker
     steps:
       - uses: actions/checkout@v4
       - name: Build ${{ matrix.name }} image (no push)

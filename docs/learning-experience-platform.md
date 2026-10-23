@@ -4,7 +4,7 @@ This document describes the API foundation for the next-generation Pathway exper
 
 ## Secure execution boundary
 
-`pathway-api` never runs learner code. It forwards code to `EVALUATOR_URL`, which points to the private Railway Modal broker. The broker verifies an internal shared-secret header and creates a fresh Modal gVisor sandbox for every submission. The evaluator is responsible for an isolated runtime per submission with all of the following controls:
+`pathway-api` never runs learner code. It forwards code to `EVALUATOR_URL`, the sandbox broker (`sandbox-broker/`). The broker verifies an internal shared-secret header and creates a fresh Vercel Sandbox (a Firecracker microVM) for every submission. The evaluator is responsible for an isolated runtime per submission with all of the following controls:
 
 - A disposable filesystem and non-root process.
 - No outbound network access, no host mounts, and no Docker socket.
@@ -13,11 +13,11 @@ This document describes the API foundation for the next-generation Pathway exper
 - No secrets in the execution environment.
 - Structured results only: test counts, compiler/runtime diagnostics, and bounded review metadata.
 
-The broker intentionally has no Railway public domain. Modal credentials exist only in that service; the sandbox receives neither Railway nor Modal credentials. Its current executable fixtures cover the initial C# and Python code lessons; new code lessons must add a deterministic fixture in `modal-broker/src/evaluator.mjs` before they can advance learners.
+The broker refuses any request without the shared secret. It authenticates to Vercel Sandbox with the short-lived OIDC token Vercel attaches to each of its requests, so it holds no long-lived platform credential, and the sandbox receives no credentials at all. New code lessons must add a deterministic fixture in `sandbox-broker/src/evaluator.mjs` before they can advance learners.
 
-### Railway runtime limitation and resolution
+### Why a separate sandbox
 
-Railway’s application runtime does not permit the unprivileged user namespaces Bubblewrap needs, so the legacy Bubblewrap evaluator stays fail-closed and is not the production execution target. The Modal broker resolves this by keeping the Railway service as a private request broker while executing learner code in a provider-isolated gVisor sandbox with `blockNetwork: true`. A broker without its credentials or shared secret reports unhealthy; the API fails closed on any broker failure.
+The API and broker run as Vercel Functions, which cannot create the isolation learner code needs, so the legacy Bubblewrap evaluator stays fail-closed and is not the production execution target. The broker is only a request broker: learner code runs in a separate microVM with `networkPolicy: 'deny-all'`, 1 vCPU, a 12-second command limit and bounded output, created from the images in `sandbox-broker/images/`. A broker without its shared secret or sandbox settings reports unhealthy; the API fails closed on any broker failure.
 
 The API fails closed for progression if the evaluator is unavailable. It can still provide static review feedback, but never declares a code exercise complete without the private evaluator.
 

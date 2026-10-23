@@ -60,7 +60,7 @@ Signed-in learners' progress and submissions are stored under `user:<sub>`. Gues
 
 ## Code evaluation
 
-Learner code never runs in the API process. The API forwards code exercises to the evaluator broker (`POST /evaluate` with `{ "lessonSlug", "code" }` and a shared-secret header, `EVALUATOR_SHARED_SECRET` = the broker's `RUNNER_SHARED_SECRET`). The broker starts a fresh Modal gVisor sandbox per submission: no outbound network, 0.5 CPU, 512 MiB memory, a 12-second execution limit, and bounded output. When `ASPNETCORE_ENVIRONMENT=Production`, code exercises fail closed unless the evaluator URL and secret are configured. The in-process deterministic validator exists only for local content development.
+Learner code never runs in the API process. The API forwards code exercises to the sandbox broker (`sandbox-broker/`, `POST /evaluate` with `{ "lessonSlug", "code" }` and a shared-secret header: `EVALUATOR_SHARED_SECRET` = the broker's `RUNNER_SHARED_SECRET`). The broker creates a fresh **Vercel Sandbox** microVM per submission from one of four images in `sandbox-broker/images/` (`dotnet`, `rust`, `node`, `tools`): no network, 1 vCPU, a 12-second command limit and bounded output. The Sandbox images workflow builds those images on pull requests and publishes them to the broker project's Vercel Container Registry from `main`. When `ASPNETCORE_ENVIRONMENT=Production`, code exercises fail closed unless the evaluator URL and secret are configured. The in-process deterministic validator exists only for local content development.
 
 ## Included experience
 

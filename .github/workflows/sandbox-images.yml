@@ -1,0 +1,73 @@
+name: Sandbox images
+
+# Builds the Vercel Sandbox images that learner code runs in. Pull requests only build them, which
+# catches Dockerfile breakage. Pushes to main also publish them to the Vercel Container Registry
+# repository of the pathway-broker project, where the broker's Sandbox.create() resolves them by
+# bare name (dotnet, rust, node, tools).
+#
+# Publishing uses GitHub OIDC; no Vercel token is stored. It needs a one-time OIDC policy on the
+# Vercel team that trusts this repository and workflow with read-write VCR access, plus these
+# repository variables: VERCEL_TEAM_ID, VERCEL_TEAM_SLUG, VERCEL_SANDBOX_PROJECT_SLUG.
+on:
+  pull_request:
+    paths: ['sandbox-broker/images/**', '.github/workflows/sandbox-images.yml']
+  push:
+    branches: [main]
+    paths: ['sandbox-broker/images/**', '.github/workflows/sandbox-images.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: sandbox-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: ${{ matrix.image }} image
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [dotnet, rust, node, tools]
+    env:
+      PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.VERCEL_TEAM_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Vercel Container Registry
+        if: env.PUBLISH == 'true'
+        uses: vercel/vcr-action/login@v1
+        with:
+          team: ${{ vars.VERCEL_TEAM_ID }}
+
+      - name: Build${{ env.PUBLISH == 'true' && ' and push' || '' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: sandbox-broker/images/${{ matrix.image }}
+          platforms: linux/amd64
+          provenance: false
+          push: ${{ env.PUBLISH == 'true' }}
+          tags: |
+            vcr.vercel.com/${{ vars.VERCEL_TEAM_SLUG || 'local' }}/${{ vars.VERCEL_SANDBOX_PROJECT_SLUG || 'pathway-broker' }}/${{ matrix.image }}:latest
+            vcr.vercel.com/${{ vars.VERCEL_TEAM_SLUG || 'local' }}/${{ vars.VERCEL_SANDBOX_PROJECT_SLUG || 'pathway-broker' }}/${{ matrix.image }}:${{ github.sha }}
+          outputs: ${{ env.PUBLISH == 'true' && 'type=image,push=true,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true' || 'type=cacheonly' }}
+
+      - name: Smoke test the image
+        if: env.PUBLISH != 'true'
+        run: |
+          docker buildx build --load --platform linux/amd64 -t sandbox-${{ matrix.image }}:ci sandbox-broker/images/${{ matrix.image }} > /dev/null
+          case "${{ matrix.image }}" in
+            dotnet) check='dotnet --version && python3 --version' ;;
+            rust)   check='rustc --version' ;;
+            node)   check='node --version && tsc --version' ;;
+            tools)  check='git --version && sqlite3 --version && vim --version | head -1 && jq --version && python3 -c "import yaml; print(yaml.__version__)"' ;;
+          esac
+          docker run --rm --network none --user 1000:1000 sandbox-${{ matrix.image }}:ci sh -c "$check && touch /workspace/write-test && echo workspace-writable"
+
+      - name: Mark the image published
+        if: env.PUBLISH == 'true'
+        run: echo "::notice::Published ${{ matrix.image }}:latest and ${{ matrix.image }}:${{ github.sha }}"

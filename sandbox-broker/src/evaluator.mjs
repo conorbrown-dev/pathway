@@ -404,6 +404,22 @@ export function boundedOutput(stdout = '', stderr = '') {
   return output.length > 4_000 ? `${output.slice(0, 4_000)}\n[output truncated]` : output
 }
 
+// Vercel Sandbox image (a repository in the broker project's Vercel Container Registry) for each
+// fixture runtime. Fixtures without a runtime use the .NET + Python image, as before.
+const SANDBOX_IMAGES = {
+  rust: 'rust',
+  react: 'node',
+  git: 'tools',
+  sqlite: 'tools',
+  linux: 'tools',
+  kubernetes: 'tools',
+  hook: 'tools',
+}
+
+export function sandboxImageFor(runtime, tag = 'latest') {
+  return `${SANDBOX_IMAGES[runtime] ?? 'dotnet'}:${tag}`
+}
+
 export function evaluationResult(fixture, exitCode, output) {
   const passed = exitCode === 0 && output.includes('PATHWAY_TEST_PASS') && (!fixture.requiredOutput || output.includes(fixture.requiredOutput))
   return { passed, passingTests: passed ? fixture.tests : 0, totalTests: fixture.tests, feedback: passed ? 'All isolated Modal sandbox tests passed.' : (output || 'The sandboxed test did not produce a passing result.'), nextLessonSlug: null }

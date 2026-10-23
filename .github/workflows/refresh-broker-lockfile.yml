@@ -1,0 +1,38 @@
+name: Refresh sandbox broker lockfile (temporary)
+
+# One-off: the authoring sandbox cannot reach the npm registry, so this regenerates
+# sandbox-broker/package-lock.json from package.json on GitHub and commits it back to this branch.
+# Delete this workflow once the lockfile commit lands.
+on:
+  push:
+    branches: [infra/vercel-auth0]
+    paths: [sandbox-broker/package.json]
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Regenerate lockfile
+        working-directory: sandbox-broker
+        run: rm -f package-lock.json && npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Verify a clean install and the import work
+        working-directory: sandbox-broker
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ls @vercel/sandbox
+          node --input-type=module -e "import { Sandbox } from '@vercel/sandbox'; for (const m of ['create']) if (typeof Sandbox[m] !== 'function') throw new Error('Sandbox.' + m + ' missing'); console.log('Sandbox.create ok')"
+      - name: Commit lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sandbox-broker/package-lock.json
+          git diff --cached --quiet && { echo "Lockfile already up to date."; exit 0; }
+          git commit -m "Regenerate sandbox broker lockfile for @vercel/sandbox"
+          git push

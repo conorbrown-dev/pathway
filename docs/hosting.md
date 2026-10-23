@@ -1,12 +1,12 @@
 # Hosting
 
-Pathway runs on **Vercel** (frontend, API and evaluator broker), **Neon** (Postgres) and **Auth0** (sign-in). It moved off Railway in October 2026, after Railway's platform outage and security incident, with a fresh start: no data was migrated.
+Pathway runs on **Vercel** (frontend, API, evaluator broker and the code sandboxes), **Neon** (Postgres) and **Auth0** (sign-in). It moved off Railway in October 2026, after Railway's platform outage and security incident, with a fresh start: no data was migrated.
 
 ```
 browser ──► pathway.orangecastle.net (Vercel project "pathway", Vite SPA)
               │  /api/*  rewritten to ─►  Vercel project "pathway-api" (.NET 10 container)
               │                              ├─► Neon "pathway" (PostgreSQL 18)
-              │                              └─► Vercel project "pathway-broker" (Node container) ─► Modal sandboxes
+              │                              └─► Vercel project "pathway-broker" (Node container) ─► Vercel Sandbox microVMs
               └─ sign-in redirect ─►  Auth0 (OIDC + PKCE); the API validates Auth0 access tokens
 ```
 
@@ -14,7 +14,8 @@ browser ──► pathway.orangecastle.net (Vercel project "pathway", Vite SPA)
 | --- | --- | --- | --- |
 | Frontend | Vercel `pathway` | `frontend/` (`vercel.json`) | push to `main` (previews for branches) |
 | API | Vercel `pathway-api`, Container Runtime | `backend/Pathway.Api/Dockerfile.vercel` | push to `main` |
-| Evaluator broker | Vercel `pathway-broker`, Container Runtime | `modal-broker/Dockerfile.vercel` | push to `main` |
+| Evaluator broker | Vercel `pathway-broker`, Container Runtime | `sandbox-broker/Dockerfile.vercel` | push to `main` |
+| Code sandboxes | Vercel Sandbox, images in `pathway-broker`'s Container Registry | `sandbox-broker/images/*/Dockerfile` | Sandbox images workflow on `main` |
 | Database | Neon `pathway` (`twilight-frog-83291776`), us-east-1, free plan | created via Vercel → Storage | n/a |
 | Sign-in | Auth0 tenant | dashboard configuration below | n/a |
 
@@ -50,7 +51,12 @@ Each Vercel project skips deployments when nothing in its own directory changed.
 | --- | --- | --- |
 | `PORT` | `8080` | set |
 | `RUNNER_SHARED_SECRET` | the **same** value as the API's `EVALUATOR_SHARED_SECRET`; **Sensitive** | owner |
-| `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET` | a **new** Modal token (revoke the one that lived on Railway); **Sensitive** | owner |
+| `SANDBOX_TEAM_ID` | `team_tZoUI4vE4sNosuZNPZ31M3oO` | set |
+| `SANDBOX_PROJECT_ID` | `prj_kV3eCUOhADugL70Dqiuty8xWXPFD` (this project, which owns the sandbox images) | set |
+
+The broker authenticates to Vercel Sandbox with the OIDC token Vercel attaches to each request it receives (`x-vercel-oidc-token`), so it stores no Vercel credential. Off Vercel, for example on the Fly fallback, set `VERCEL_TOKEN` instead.
+
+**Modal is no longer used.** Revoke the Modal token that lived on Railway, and delete the Modal account if nothing else uses it.
 
 ### Vercel `pathway` (frontend)
 
@@ -77,6 +83,25 @@ Vite embeds these at build time; redeploy after changing them.
 
 Signed-in learners are stored as `user:<Auth0 sub>` (for example `user:google-oauth2|123`); guests as `guest:<id>`.
 
+## Sandbox images
+
+Learner code runs in Vercel Sandbox microVMs: one per submission, network `deny-all`, 1 vCPU, a 12-second command limit. Images:
+
+| Image | Base | Exercises |
+| --- | --- | --- |
+| `dotnet` | .NET 10 SDK + Python 3 | C#, Python |
+| `rust` | `rust:1.97-slim` | Rust |
+| `node` | Node 22 + TypeScript 6 | React / TypeScript |
+| `tools` | Debian + git, sqlite3, coreutils, vim, jq, python3-yaml | Git, SQLite, Linux/Bash/Vim, Kubernetes, Claude hooks |
+
+The **Sandbox images** workflow builds all four on every pull request that touches them, and smoke-tests them (tool versions, writable `/workspace`, no network, non-root user). On `main` it publishes them to the `pathway-broker` project's Vercel Container Registry. Publishing uses GitHub OIDC, so no token is stored. It needs, once:
+
+1. **Vercel → Team Settings → OIDC Federation** (or Container Registry access policies): trust GitHub repository `conorbrown-dev/pathway`, workflow `sandbox-images.yml`, branch `main`, with read-write access to Vercel Container Registry for project `pathway-broker`.
+2. **GitHub → Settings → Secrets and variables → Actions → Variables**: `VERCEL_TEAM_ID=team_tZoUI4vE4sNosuZNPZ31M3oO`, `VERCEL_TEAM_SLUG=carl-brown87-9852`, `VERCEL_SANDBOX_PROJECT_SLUG=pathway-broker`.
+3. Run the workflow once (Actions → Sandbox images → Run workflow), then check that each repository shows **Ready** in the project's Container Registry tab.
+
+**Hobby allowance:** 5,000 sandbox creations (one per code submission), 5 hours of active CPU, 10 concurrent sandboxes, per month. When exceeded, creation pauses until the cycle resets. You are never charged on Hobby, but code exercises can't be graded until the reset. Pro bills about $0.002 per run against its $20 monthly credit.
+
 ## DNS (Cloudflare)
 
 `orangecastle.net` is on Cloudflare. Change the `pathway` record to **CNAME `2d345992e92faf49.vercel-dns-017.com`**, set to **DNS only** (grey cloud). Vercel issues the certificate itself and must see requests directly.
@@ -86,11 +111,11 @@ Signed-in learners are stored as `user:<Auth0 sub>` (for example `user:google-oa
 - `https://pathway.orangecastle.net` loads lessons, and the first request after idle may take a few seconds.
 - A guest can answer the first quiz.
 - Sign up, sign out, sign in. The page you started on comes back after sign-in.
-- A C# code exercise passes while signed in. This exercises the API → broker → Modal path and the shared secret.
+- A C# code exercise passes while signed in. This exercises the API → broker → Vercel Sandbox path, the shared secret and the published images.
 
 ## Fallback: Fly.io
 
-`backend/Pathway.Api/fly.toml` and `modal-broker/fly.toml` build the same `Dockerfile.vercel` images, for running always-on (no cold starts) on Fly.io if Vercel's Container Runtime, still in beta, falls short. Deploy with `fly deploy --config <path>/fly.toml <path>`. Set the same variables, use `HOST=::` for the broker on Fly's IPv6 private network, and point `EVALUATOR_URL` at `http://pathway-broker.internal:8080`.
+`backend/Pathway.Api/fly.toml` and `sandbox-broker/fly.toml` build the same `Dockerfile.vercel` images, for running always-on (no cold starts) on Fly.io if Vercel's Container Runtime, still in beta, falls short. Deploy with `fly deploy --config <path>/fly.toml <path>`. Set the same variables, use `HOST=::` for the broker on Fly's IPv6 private network, and point `EVALUATOR_URL` at `http://pathway-broker.internal:8080`.
 
 ## Retiring Railway
 
