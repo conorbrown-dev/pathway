@@ -2,7 +2,7 @@ import http from 'node:http'
 import crypto from 'node:crypto'
 import { Readable } from 'node:stream'
 import { Sandbox } from '@vercel/sandbox'
-import { boundedOutput, evaluationResult, fixtureFor, hookInputFor, hookMatcherMatches, interpretHookResult, requestPath, sandboxImageFor, validateHookRequest, validateRequest } from './evaluator.mjs'
+import { asLearner, boundedOutput, evaluationResult, fixtureFor, hookInputFor, hookMatcherMatches, interpretHookResult, requestPath, sandboxImageFor, validateHookRequest, validateRequest } from './evaluator.mjs'
 
 const port = Number(process.env.PORT ?? 8080)
 // Fly's private network is IPv6-only, so deployments there set HOST=::. Default to IPv4 so the
@@ -56,7 +56,8 @@ async function createSandbox(token, runtime) {
 }
 
 async function run(sandbox, command, timeoutMs, stdin) {
-  const [cmd, ...args] = command
+  // Vercel Sandbox runs commands as root; drop to the unprivileged learner user first.
+  const [cmd, ...args] = asLearner(command)
   const signal = AbortSignal.timeout(timeoutMs)
   try {
     const result = await sandbox.runCommand({ cmd, args, cwd: '/workspace', signal, ...(stdin === undefined ? {} : { stdin: Readable.from([stdin]) }) })

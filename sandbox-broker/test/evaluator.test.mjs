@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { boundedOutput, evaluationResult, fixtureFor, sandboxImageFor, hookInputFor, hookMatcherMatches, interpretHookResult, requestPath, validateHookRequest, validateRequest } from '../src/evaluator.mjs'
+import { asLearner, LEARNER_WRAPPER, boundedOutput, evaluationResult, fixtureFor, sandboxImageFor, hookInputFor, hookMatcherMatches, interpretHookResult, requestPath, validateHookRequest, validateRequest } from '../src/evaluator.mjs'
 
 test('accepts bounded valid code submissions', () => assert.equal(validateRequest({ lessonSlug: 'python-functions', code: 'def greet(name): return name' }), null))
 
@@ -194,4 +194,19 @@ test('routes on the path and ignores query strings', () => {
   assert.equal(requestPath('/evaluate?x=1'), '/evaluate')
   assert.equal(requestPath('/evaluate-hook#frag'), '/evaluate-hook')
   assert.equal(requestPath(undefined), '/')
+})
+
+test('runs learner commands through the unprivileged wrapper', async () => {
+  assert.deepEqual(asLearner(['/bin/sh', '-c', 'rustc main.rs']), [LEARNER_WRAPPER, '/bin/sh', '-c', 'rustc main.rs'])
+  assert.throws(() => asLearner([]), /required/)
+  // The wrapper the images install must be the one the broker calls.
+  const { readFile } = await import('node:fs/promises')
+  const wrapper = await readFile(new URL('../images/as-learner', import.meta.url), 'utf8')
+  assert.match(wrapper, /--reuid=10001/)
+  assert.match(wrapper, /--no-new-privs/)
+  for (const image of ['dotnet', 'rust', 'node', 'tools']) {
+    const dockerfile = await readFile(new URL(`../images/${image}/Dockerfile`, import.meta.url), 'utf8')
+    assert.match(dockerfile, new RegExp(`COPY .*as-learner ${LEARNER_WRAPPER}`), `${image} does not install the wrapper`)
+    assert.match(dockerfile, /useradd --uid 10001/, `${image} does not create the learner user`)
+  }
 })

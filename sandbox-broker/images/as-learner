@@ -1,0 +1,11 @@
+#!/bin/sh
+# Runs a command as the unprivileged `learner` user (uid 10001). Vercel Sandbox runs commands as
+# root inside the microVM, so the broker starts every learner command through this wrapper: it
+# drops to `learner`, clears supplementary groups and forbids regaining privileges (setuid
+# binaries, file capabilities). PATH is kept so each image's toolchain still resolves.
+set -eu
+if [ "$(id -u)" = "0" ]; then
+  exec setpriv --reuid=10001 --regid=10001 --clear-groups --no-new-privs -- \
+    env HOME=/home/learner USER=learner LOGNAME=learner "$@"
+fi
+exec "$@"
