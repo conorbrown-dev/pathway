@@ -22,6 +22,7 @@ const LIMIT_MS = 12_000 // EXERCISE_TIMEOUT_MS in src/server.mjs
 const solutionsDir = fileURLToPath(new URL('../test/rust-solutions/', import.meta.url))
 const solutions = readdirSync(solutionsDir).filter(name => name.endsWith('.rs')).sort()
 let failures = 0
+const timings = []
 
 for (const name of solutions) {
   const slug = name.split('.')[0]
@@ -47,8 +48,11 @@ for (const name of solutions) {
   if (!ok || slow) {
     failures++
     console.log(output.slice(0, 2_000))
+    if (process.env.GITHUB_ACTIONS) console.log(`::error title=${name}::${ok ? 'too slow' : 'unexpected result'} (${elapsed} ms): ${output.replace(/\s+/g, ' ').slice(0, 300)}`)
   }
+  timings.push(`${name} ${elapsed} ms`)
 }
 
 console.log(`${solutions.length - failures}/${solutions.length} fixture checks passed`)
+if (process.env.GITHUB_ACTIONS) console.log(`::notice title=Rust fixtures in image::${solutions.length - failures}/${solutions.length} passed. ${timings.join(', ')}`)
 process.exit(failures === 0 ? 0 : 1)

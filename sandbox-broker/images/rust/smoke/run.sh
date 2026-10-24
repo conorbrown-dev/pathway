@@ -7,5 +7,6 @@ start=$(date +%s%N)
 pathway-rustc main.rs -o main
 compiled=$(date +%s%N)
 ./main
-echo "pathway-rustc compile: $(( (compiled - start) / 1000000 )) ms"
-cat /opt/pathway-crates/CRATES.txt
+# GitHub Actions turns ::notice lines into annotations, which stay readable without log access.
+echo "::notice title=pathway-rustc::Tokio + Axum probe compiled in $(( (compiled - start) / 1000000 )) ms and passed"
+echo "::notice title=Prebuilt crates::$(grep -v '^pathway_crates' /opt/pathway-crates/CRATES.txt | tr '\n' ',' | sed 's/,$//; s/,/, /g')"
