@@ -11,6 +11,7 @@ static partial class Curriculum
         "rust-errors-panics" => RustErrorsPanics(lesson),
         "rust-iterators-closures" => RustIteratorsClosures(lesson),
         "rust-smart-pointers" => RustSmartPointers(lesson),
+        "rust-concurrency-send-sync" => RustConcurrencySendSync(lesson),
         _ => lesson
     };
 
@@ -886,5 +887,179 @@ static partial class Curriculum
             [],
             "`path_len` can recurse through the box with `match`. For the roster, change the `Vec` through `roster.borrow_mut()`, not a clone of it. For the counter, give each thread an `Arc::clone` of one `Arc<Mutex<usize>>`, `join` every handle, then read the total with `lock()`.",
             ["Recursion through a Box counts every step", "All Rc handles share one roster", "Enrolling twice is refused", "Threads add to one shared counter"]),
+    };
+    private static Lesson RustConcurrencySendSync(Lesson lesson) => lesson with
+    {
+        Subtitle = "Run work in parallel, pass results with channels, and let Send and Sync rule out data races at compile time.",
+        Concept = "Threads run code at the same time. Rust's ownership rules, expressed through the `Send` and `Sync` marker traits, stop two threads from changing the same data without synchronisation. A data race is a compile error, not a heisenbug.",
+        Body = """
+            ## Why concurrency is hard, and what Rust changes
+            A **data race** happens when two threads access the same memory at the same time, at least one of them writes, and nothing orders the accesses. The result depends on timing. It might pass every test and fail in production once a month. In most languages, avoiding data races is up to discipline and code review.
+
+            Rust turns them into compile errors, using rules you already know: many readers *or* one writer, and nothing outliving its owner. Those rules apply across threads too. What Rust doesn't prevent are logic bugs such as deadlocks or doing steps in the wrong order. Those are still yours to design out.
+
+            ## Spawning threads
+            `std::thread::spawn` starts a thread and returns a `JoinHandle`. `join()` waits for it and gives back its return value, or an `Err` if it panicked.
+
+            ```rust
+            use std::thread;
+
+            let handle = thread::spawn(|| (1..=100u64).sum::<u64>());
+            let total = handle.join().unwrap();
+            ```
+
+            A spawned thread can outlive the function that started it, so its closure can't borrow local variables. Try it and you get **E0373: closure may outlive the current function, but it borrows `v`**. Either `move` ownership into the thread, or use scoped threads.
+
+            ## Scoped threads: borrowing across threads safely
+            `thread::scope` guarantees that every thread spawned inside it has finished before the scope returns. Because of that guarantee, those threads may borrow local data:
+
+            ```rust
+            fn parallel_sum(numbers: &[u64], workers: usize) -> u64 {
+                let chunk_size = numbers.len().div_ceil(workers.max(1)).max(1);
+                std::thread::scope(|scope| {
+                    let handles: Vec<_> = numbers
+                        .chunks(chunk_size)
+                        .map(|chunk| scope.spawn(move || chunk.iter().sum::<u64>()))
+                        .collect();
+                    handles.into_iter().map(|handle| handle.join().unwrap()).sum()
+                })
+            }
+            ```
+
+            Each thread gets a borrowed slice. Nothing is copied and no `Arc` is needed. Scoped threads are often the simplest correct choice for "split this work, then combine".
+
+            ## Channels: share by communicating
+            Instead of several threads changing shared state, each thread can *send* its result to one receiver. `std::sync::mpsc::channel()` returns a `Sender` and a `Receiver` ("multi-producer, single-consumer"):
+
+            ```rust
+            use std::sync::mpsc;
+            use std::thread;
+
+            let (sender, receiver) = mpsc::channel();
+            for (index, job) in jobs.into_iter().enumerate() {
+                let sender = sender.clone();
+                thread::spawn(move || sender.send((index, job * job)).unwrap());
+            }
+            drop(sender); // otherwise the loop below waits for a message that never comes
+
+            for (index, square) in receiver {
+                results[index] = square;
+            }
+            ```
+
+            Two details matter here:
+
+            - **Iterating a `Receiver` ends only when every `Sender` is dropped.** Forgetting `drop(sender)` for the original sender makes the program hang.
+            - **Messages arrive in finishing order, not sending order.** Tag each message, here with its index, when order matters.
+
+            Sending a value moves it into the channel, so the sending thread can't touch it afterwards. That's ownership preventing a race.
+
+            ## Send and Sync
+            Two *marker traits* decide what may cross thread boundaries. They have no methods; the compiler implements them automatically when every field qualifies.
+
+            - **`Send`**: ownership of the value can be moved to another thread. Almost everything is `Send`. `Rc` is not: its counter isn't atomic, so two threads could update it at once. Try it and you get **E0277: `Rc<i32>` cannot be sent between threads safely**.
+            - **`Sync`**: a shared reference `&T` can be used from several threads at once. `Cell` and `RefCell` are not `Sync`, because changing them through `&T` without locking would race.
+
+            `thread::spawn` requires its closure to be `Send + 'static`; scoped threads that borrow `&T` require `T: Sync`. These bounds are how the standard library turns "no data races" into ordinary type checking.
+
+            ## Atomics: lock-free counters and flags
+            For a single number shared between threads, an atomic type such as `AtomicU64` or `AtomicBool` is simpler and faster than a `Mutex`:
+
+            ```rust
+            use std::sync::atomic::{AtomicU64, Ordering};
+
+            struct HitCounter {
+                hits: AtomicU64,
+            }
+
+            impl HitCounter {
+                fn record(&self) {
+                    self.hits.fetch_add(1, Ordering::Relaxed);
+                }
+            }
+            ```
+
+            Note that `record` takes `&self`, not `&mut self`. Atomics change through a shared reference safely, which is what makes `HitCounter` `Sync`.
+
+            The `Ordering` says how this operation is ordered relative to *other* memory operations. `Relaxed` is enough for an independent counter. Use `Acquire`/`Release`, or `SeqCst` when unsure, when an atomic flag guards other data. The low-level foundations module covers ordering in depth.
+
+            ## Choosing an approach
+            - **Split and combine** (sum, map over chunks): scoped threads, each returning a value.
+            - **Producers and a consumer**: channels.
+            - **A shared counter or flag**: an atomic.
+            - **Shared state that's more than one number**: `Arc<Mutex<T>>`, keeping each lock short.
+            - **Lots of independent CPU-heavy items**: the `rayon` crate's `par_iter()` handles splitting and the thread pool for you.
+            - **Waiting on many network calls at once**: async, which is the next lesson. Threads suit CPU-bound work.
+
+            ## Common mistakes
+            - Not dropping the original `Sender`, so the receiving loop never ends.
+            - Assuming messages or thread results arrive in the order you started them.
+            - Spawning one OS thread per tiny task. Threads cost memory and scheduling time, so batch the work.
+            - Holding a `Mutex` guard while sending on a channel or doing slow work, which serialises your "parallel" code.
+            - `unwrap()` on `join()` hiding which worker panicked and why. In real code, handle the `Err` and log it.
+            - Treating the absence of a data race as a correct design. Deadlocks and ordering bugs still compile.
+
+            ## Try it locally
+            1. Spawn a thread whose closure borrows a local `Vec` and read E0373. Fix it once with `move` and once with `thread::scope`.
+            2. Move an `Rc` into a thread and read the `Send` error. Swap in `Arc` and see it compile.
+            3. Comment out `drop(sender)` in a channel example and watch the program hang. Use Ctrl+C to stop it.
+            4. Count to a million from 8 threads with `AtomicU64`, then with `Arc<Mutex<u64>>`. Time both with `std::time::Instant`.
+            """,
+        Example = """
+            let (sender, receiver) = std::sync::mpsc::channel();
+            for (index, job) in jobs.into_iter().enumerate() {
+                let sender = sender.clone();
+                std::thread::spawn(move || sender.send((index, job * job)).unwrap());
+            }
+            drop(sender);
+
+            for (index, square) in receiver {
+                results[index] = square;
+            }
+            """,
+        Exercise = new Exercise(
+            ExerciseKind.Code,
+            "Split work across threads, collect it in order, and count safely",
+            "Implement a parallel sum with scoped threads, a channel-based job runner that keeps results in job order, and a counter that many threads share. The grader compiles your code with its own `main`, so don't write a `main` function.",
+            [
+                "`fn parallel_sum(numbers: &[u64], workers: usize) -> u64`: split the slice between up to `workers` threads (at least one) and add up their partial sums. Every number must be included, and an empty slice sums to 0",
+                "`fn squares_in_order(jobs: Vec<u64>) -> Vec<u64>`: square each job on its own thread and return the squares in the original job order",
+                "`struct HitCounter` with `fn new() -> Self`, `fn record(&self)` and `fn total(&self) -> u64`. `record` takes `&self` and must be safe to call from many threads at once",
+            ],
+            """
+            use std::sync::atomic::{AtomicU64, Ordering};
+            use std::sync::mpsc;
+            use std::thread;
+
+            fn parallel_sum(numbers: &[u64], workers: usize) -> u64 {
+                todo!()
+            }
+
+            fn squares_in_order(jobs: Vec<u64>) -> Vec<u64> {
+                todo!()
+            }
+
+            struct HitCounter {
+                hits: AtomicU64,
+            }
+
+            impl HitCounter {
+                fn new() -> Self {
+                    todo!()
+                }
+
+                fn record(&self) {
+                    todo!()
+                }
+
+                fn total(&self) -> u64 {
+                    todo!()
+                }
+            }
+            """,
+            null,
+            [],
+            "Use `thread::scope` with `numbers.chunks(size)`, where `size` is the length divided by the workers and rounded up. For the jobs, send `(index, square)` through a channel, drop the original sender, and place each result at its index. `HitCounter` can use `fetch_add(1, Ordering::Relaxed)` and `load`.",
+            ["The parallel sum includes every number", "Results keep their job order", "A shared counter counts every hit", "The counter is Send and Sync"]),
     };
 }

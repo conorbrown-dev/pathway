@@ -351,6 +351,43 @@ fn main() {
         tests: 4,
         runtime: 'rust',
       }
+    case 'rust-concurrency-send-sync':
+      return {
+        files: { 'main.rs': `${code}
+
+fn requires_send_and_sync<T: Send + Sync>() {}
+
+fn main() {
+    let numbers: Vec<u64> = (1..=1_000).collect();
+    assert_eq!(parallel_sum(&numbers, 4), 500_500, "four workers sum 1..=1000");
+    assert_eq!(parallel_sum(&numbers, 3), 500_500, "uneven chunks still include every number");
+    assert_eq!(parallel_sum(&numbers, 1), 500_500, "one worker sums everything");
+    assert_eq!(parallel_sum(&[5, 6, 7], 8), 18, "more workers than numbers still works");
+    assert_eq!(parallel_sum(&[], 4), 0, "an empty slice sums to zero");
+
+    assert_eq!(squares_in_order(vec![3, 1, 2]), vec![9, 1, 4], "results come back in job order, not finishing order");
+    assert_eq!(squares_in_order((1..=20).rev().collect()), (1..=20u64).rev().map(|n| n * n).collect::<Vec<_>>(), "many jobs keep their order");
+    assert_eq!(squares_in_order(Vec::new()), Vec::<u64>::new(), "no jobs, no results");
+
+    requires_send_and_sync::<HitCounter>();
+    let counter = HitCounter::new();
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            scope.spawn(|| {
+                for _ in 0..1_000 {
+                    counter.record();
+                }
+            });
+        }
+    });
+    assert_eq!(counter.total(), 8_000, "every hit from every thread is counted");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
     case 'foundations-making-decisions':
       return {
         files: {
