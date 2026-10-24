@@ -12,6 +12,7 @@ static partial class Curriculum
         "rust-iterators-closures" => RustIteratorsClosures(lesson),
         "rust-smart-pointers" => RustSmartPointers(lesson),
         "rust-concurrency-send-sync" => RustConcurrencySendSync(lesson),
+        "rust-async-tokio" => RustAsyncTokio(lesson),
         _ => lesson
     };
 
@@ -1061,5 +1062,169 @@ static partial class Curriculum
             [],
             "Use `thread::scope` with `numbers.chunks(size)`, where `size` is the length divided by the workers and rounded up. For the jobs, send `(index, square)` through a channel, drop the original sender, and place each result at its index. `HitCounter` can use `fetch_add(1, Ordering::Relaxed)` and `load`.",
             ["The parallel sum includes every number", "Results keep their job order", "A shared counter counts every hit", "The counter is Send and Sync"]),
+    };
+    private static Lesson RustAsyncTokio(Lesson lesson) => lesson with
+    {
+        Subtitle = "Overlap waiting, not computing: futures, the Tokio runtime, timeouts, and limits on concurrency.",
+        Concept = "An `async fn` returns a future, a value describing work that hasn't run yet. A runtime such as Tokio polls futures and switches between them whenever one is waiting, so a few threads can serve thousands of slow network calls. Async helps with waiting (I/O), not with CPU-heavy work.",
+        Body = """
+            ## The problem async solves
+            A web service spends most of its time *waiting*: for the database, for another API, for the client to send more bytes. With one thread per request, 10,000 slow clients means 10,000 threads, each reserving its own stack and costing a context switch. Async lets one thread work on many tasks: when a task has to wait, it steps aside and the thread runs another.
+
+            The concurrency lesson used threads to do *more computing at once*. Async is for *waiting on more things at once*. If the work is pure calculation, threads (or `rayon`) are still the right tool.
+
+            ## Futures are lazy
+            Calling an `async fn` runs none of its body. It returns a **future**, and nothing happens until something `.await`s it:
+
+            ```rust
+            async fn fetch_score(learner: &str) -> u32 {
+                // imagine a network call here
+                42
+            }
+
+            let future = fetch_score("ada"); // nothing has run
+            let score = future.await;        // now it runs, pausing whenever it waits
+            ```
+
+            `.await` can only be used inside `async` code. When the awaited work isn't ready, for example the socket has no data yet, the current task pauses at that point and the runtime runs other tasks. When the data arrives, the task resumes exactly where it stopped.
+
+            Like iterator adapters, an unawaited future does nothing, and the compiler warns that futures *do nothing unless you `.await` or poll them*.
+
+            ## The runtime: Tokio
+            Rust's standard library defines `Future`, but not what runs futures. That is a *runtime*, and Tokio is the most widely used one. `#[tokio::main]` turns `main` into an async function and starts the runtime:
+
+            ```rust
+            #[tokio::main]
+            async fn main() {
+                let score = fetch_score("ada").await;
+                println!("{score}");
+            }
+            ```
+
+            By default Tokio runs a pool of worker threads, one per CPU core. `#[tokio::main(flavor = "current_thread")]` runs everything on one thread, which is useful for tests and small tools.
+
+            ## Doing several things at once
+            Awaiting one call after another is sequential, even inside `async`. Ten 100 ms calls awaited in a loop take a full second. To overlap them, start them all before waiting for any:
+
+            ```rust
+            // tokio::spawn starts a task immediately and returns a JoinHandle.
+            let handles: Vec<_> = numbers
+                .into_iter()
+                .map(|n| tokio::spawn(slow_square(n)))
+                .collect();
+
+            let mut results = Vec::new();
+            for handle in handles {
+                results.push(handle.await.unwrap()); // already running; this just collects
+            }
+            ```
+
+            Tools for combining work:
+
+            - `tokio::spawn(future)` runs a future as an independent task. Like `thread::spawn`, the future must be `Send + 'static`, so `move` what it needs.
+            - `tokio::task::JoinSet` holds a group of spawned tasks and returns each result as it finishes.
+            - `tokio::join!(a, b)` awaits several futures concurrently on the current task and returns all their results.
+            - `tokio::select!` waits for whichever of several futures finishes first and cancels the others.
+
+            ## Timeouts and cancellation
+            Every call to something outside your process needs a time limit. Otherwise one slow dependency can hold requests open until resources run out.
+
+            ```rust
+            use std::time::Duration;
+
+            match tokio::time::timeout(Duration::from_secs(2), fetch_score("ada")).await {
+                Ok(score) => println!("{score}"),
+                Err(_) => println!("timed out"),
+            }
+            ```
+
+            When a timeout fires, or `select!` picks another branch, the losing future is **dropped**, and that *is* cancellation. Its code simply stops at its last `.await` and its `Drop` cleanup runs. Design async functions so that stopping at any `.await` leaves things consistent: don't leave half-written state between two awaits.
+
+            ## Limiting concurrency
+            Spawning a task per item is easy, which makes it easy to send 10,000 simultaneous requests to a database that allows 50 connections. Bound how much runs at once with a `Semaphore`:
+
+            ```rust
+            use std::sync::Arc;
+            use tokio::sync::Semaphore;
+
+            let permits = Arc::new(Semaphore::new(3));
+            for n in numbers {
+                let permits = Arc::clone(&permits);
+                tokio::spawn(async move {
+                    let _permit = permits.acquire_owned().await.unwrap(); // waits while 3 are running
+                    slow_square(n).await                                  // permit released when dropped
+                });
+            }
+            ```
+
+            The next lesson builds on this with backpressure and task ownership.
+
+            ## Don't block the runtime
+            A Tokio worker thread runs many tasks by switching at `.await` points. Code that blocks *without* awaiting freezes every task on that thread. That includes `std::thread::sleep`, a slow loop of pure computation, synchronous file or network calls, or holding a `std::sync::Mutex` across an `.await`.
+
+            - Use the async versions: `tokio::time::sleep`, `tokio::fs`, async database drivers.
+            - Move blocking or CPU-heavy work off the runtime with `tokio::task::spawn_blocking(|| ...)`.
+            - Use `tokio::sync::Mutex` only when a lock must be held across an `.await`. Otherwise a short `std::sync::Mutex` section is fine and faster.
+
+            ## Common mistakes
+            - Awaiting in a loop and expecting it to be concurrent.
+            - Spawning without a limit, and overwhelming a database or API.
+            - No timeout on outbound calls.
+            - `std::thread::sleep` or heavy computation inside an async task.
+            - Ignoring `JoinHandle` results, so a panicking task fails silently.
+            - Making everything `async` "for performance". Async adds complexity and pays off for I/O-bound work.
+
+            ## Try it locally
+            1. Run `cargo new async_lab`, then `cargo add tokio --features full`.
+            2. Write `async fn slow_square(n: u64) -> u64` that sleeps 100 ms with `tokio::time::sleep`. Time awaiting ten of them in a loop, then spawning all ten first.
+            3. Replace `tokio::time::sleep` with `std::thread::sleep` under `#[tokio::main(flavor = "current_thread")]` and watch the concurrency disappear.
+            4. Wrap a call in `tokio::time::timeout` with a limit shorter than its sleep, and handle the `Err`.
+            5. Add a `Semaphore` limiting the spawned calls to 3, and print how many run at once.
+            """,
+        Example = """
+            let handles: Vec<_> = numbers
+                .into_iter()
+                .map(|n| tokio::spawn(slow_square(n)))
+                .collect();
+
+            let mut squares = Vec::new();
+            for handle in handles {
+                squares.push(handle.await.unwrap());
+            }
+
+            let limited = tokio::time::timeout(Duration::from_millis(500), slow_square(7)).await;
+            """,
+        Exercise = new Exercise(
+            ExerciseKind.Code,
+            "Overlap slow calls, time them out, and cap concurrency",
+            "The grader provides `async fn slow_square(number: u64) -> u64`, which takes 100 ms like a remote call. Don't define it yourself. Write three async functions that use it, with Tokio. The grader compiles your code with its own `#[tokio::main]`, so don't write a `main` function.",
+            [
+                "`async fn squares_concurrently(numbers: Vec<u64>) -> Vec<u64>`: call `slow_square` for every number at the same time and return the results in input order. Ten numbers should take about 100 ms, not 1 second",
+                "`async fn with_timeout(number: u64, limit_ms: u64) -> Option<u64>`: `Some(square)` if `slow_square` finishes within `limit_ms`, otherwise `None`",
+                "`async fn bounded_squares(numbers: Vec<u64>, max_in_flight: usize) -> Vec<u64>`: like `squares_concurrently`, but never more than `max_in_flight` calls running at once, with results still in input order",
+            ],
+            """
+            use std::sync::Arc;
+            use std::time::Duration;
+            use tokio::sync::Semaphore;
+
+            // The grader provides: async fn slow_square(number: u64) -> u64
+
+            async fn squares_concurrently(numbers: Vec<u64>) -> Vec<u64> {
+                todo!()
+            }
+
+            async fn with_timeout(number: u64, limit_ms: u64) -> Option<u64> {
+                todo!()
+            }
+
+            async fn bounded_squares(numbers: Vec<u64>, max_in_flight: usize) -> Vec<u64> {
+                todo!()
+            }
+            """,
+            null,
+            [],
+            "Start every call with `tokio::spawn(slow_square(n))` before awaiting any, then await the handles in order. `tokio::time::timeout(Duration::from_millis(limit_ms), ...).await.ok()` gives the `Option`. For the cap, give each task an `Arc<Semaphore>` clone and hold `acquire_owned().await` while it calls `slow_square`.",
+            ["Calls overlap instead of running one after another", "Results keep their input order", "A slow call times out", "Never more than the limit run at once"]),
     };
 }
