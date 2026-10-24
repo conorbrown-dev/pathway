@@ -464,6 +464,15 @@ const SANDBOX_IMAGES = {
   hook: 'tools',
 }
 
+/** Wrapper baked into every sandbox image (images/as-learner) that drops root to uid 10001. */
+export const LEARNER_WRAPPER = '/usr/local/bin/as-learner'
+
+/** Every command that touches learner code runs through the wrapper, never directly as root. */
+export function asLearner(command) {
+  if (!Array.isArray(command) || command.length === 0) throw new Error('A command is required.')
+  return [LEARNER_WRAPPER, ...command]
+}
+
 /** The request path without its query string, so `/health?probe=1` still routes to `/health`. */
 export function requestPath(url = '/') {
   try {

@@ -97,7 +97,7 @@ Signed-in learners are stored as `user:<Auth0 sub>` (for example `user:auth0|65f
 
 ## Sandbox images
 
-Learner code runs in Vercel Sandbox microVMs: one per submission, network `deny-all`, 1 vCPU, a 12-second command limit. Images:
+Learner code runs in Vercel Sandbox microVMs: one per submission, network `deny-all`, 1 vCPU, a 12-second command limit. Vercel Sandbox runs commands as root, so the broker starts every learner command through `/usr/local/bin/as-learner` (`sandbox-broker/images/as-learner`). The wrapper drops to the unprivileged `learner` user (uid 10001), clears supplementary groups and sets *no new privileges*. Images:
 
 | Image | Base | Exercises |
 | --- | --- | --- |
@@ -106,11 +106,13 @@ Learner code runs in Vercel Sandbox microVMs: one per submission, network `deny-
 | `node` | Node 22 + TypeScript 6 | React / TypeScript |
 | `tools` | Debian + git, sqlite3, coreutils, vim, jq, python3-yaml | Git, SQLite, Linux/Bash/Vim, Kubernetes, Claude hooks |
 
-The **Sandbox images** workflow builds all four on every pull request that touches them, and smoke-tests them (tool versions, writable `/workspace`, no network, non-root user). On `main` it publishes them to the `pathway-broker` project's Vercel Container Registry. Publishing uses GitHub OIDC, so no token is stored. It needs, once:
+The **Sandbox images** workflow builds all four on every pull request that touches them, and smoke-tests them: tool versions, writable `/workspace`, no network, and that `as-learner` really runs as uid 10001 with no way to write to `/etc` or regain privileges. On `main` it publishes them to the `pathway-broker` project's Vercel Container Registry. Publishing uses GitHub OIDC, so no token is stored. It needs, once:
 
 1. **Vercel → Team Settings → OIDC Federation** (or Container Registry access policies): trust GitHub repository `conorbrown-dev/pathway`, workflow `sandbox-images.yml`, branch `main`, with read-write access to Vercel Container Registry for project `pathway-broker`.
 2. **GitHub → Settings → Secrets and variables → Actions → Variables**: `VERCEL_TEAM_ID=team_tZoUI4vE4sNosuZNPZ31M3oO`, `VERCEL_TEAM_SLUG=carl-brown87-9852`, `VERCEL_SANDBOX_PROJECT_SLUG=pathway-broker`.
 3. Run the workflow once (Actions → Sandbox images → Run workflow), then check that each repository shows **Ready** in the project's Container Registry tab.
+
+The policy is in place: **pathway sandbox images** (Team Settings → Build and Deployment → OIDC Policies), scoped to workflow `Sandbox images` on `main` with read-write access to `pathway-broker` only. When the broker and the images change together, the broker can deploy a few minutes before the new images are published. Submissions made in that window fail closed (they are graded as not passing) rather than running with the old behaviour.
 
 **Hobby allowance:** 5,000 sandbox creations (one per code submission), 5 hours of active CPU, 10 concurrent sandboxes, per month. When exceeded, creation pauses until the cycle resets. You are never charged on Hobby, but code exercises can't be graded until the reset. Pro bills about $0.002 per run against its $20 monthly credit.
 

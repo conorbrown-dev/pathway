@@ -47,7 +47,9 @@ jobs:
       - name: Build${{ env.PUBLISH == 'true' && ' and push' || '' }}
         uses: docker/build-push-action@v6
         with:
-          context: sandbox-broker/images/${{ matrix.image }}
+          # Shared context so every image can COPY the as-learner wrapper.
+          context: sandbox-broker/images
+          file: sandbox-broker/images/${{ matrix.image }}/Dockerfile
           platforms: linux/amd64
           provenance: false
           push: ${{ env.PUBLISH == 'true' }}
@@ -59,14 +61,23 @@ jobs:
       - name: Smoke test the image
         if: env.PUBLISH != 'true'
         run: |
-          docker buildx build --load --platform linux/amd64 -t sandbox-${{ matrix.image }}:ci sandbox-broker/images/${{ matrix.image }} > /dev/null
+          docker buildx build --load --platform linux/amd64 -f sandbox-broker/images/${{ matrix.image }}/Dockerfile -t sandbox-${{ matrix.image }}:ci sandbox-broker/images > /dev/null
           case "${{ matrix.image }}" in
             dotnet) check='dotnet --version && python3 --version' ;;
             rust)   check='rustc --version' ;;
             node)   check='node --version && tsc --version' ;;
             tools)  check='git --version && sqlite3 --version && vim --version | head -1 && jq --version && python3 -c "import yaml; print(yaml.__version__)"' ;;
           esac
-          docker run --rm --network none --user 1000:1000 sandbox-${{ matrix.image }}:ci sh -c "$check && touch /workspace/write-test && echo workspace-writable"
+          # Run as root, like Vercel Sandbox does, and go through as-learner like the broker does.
+          docker run --rm --network none sandbox-${{ matrix.image }}:ci as-learner sh -c "$check && touch /workspace/write-test && echo workspace-writable"
+          docker run --rm --network none sandbox-${{ matrix.image }}:ci as-learner sh -c '
+            set -e
+            test "$(id -u)" = 10001 && test "$(id -g)" = 10001 && test "$(id -G)" = 10001
+            test "$HOME" = /home/learner && touch "$HOME/home-writable"
+            if touch /etc/escalation-test 2>/dev/null; then echo "learner can write to /etc" >&2; exit 1; fi
+            grep -q "^NoNewPrivs:[[:space:]]*1" /proc/self/status
+            echo "runs as learner without privileges"
+          '
 
       - name: Mark the image published
         if: env.PUBLISH == 'true'
