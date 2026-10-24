@@ -260,6 +260,34 @@ fn main() {
         tests: 4,
         runtime: 'rust',
       }
+    case 'rust-errors-panics':
+      return {
+        files: { 'main.rs': `${code}
+
+fn requires_std_error<E: std::error::Error>(_: &E) {}
+
+fn main() {
+    assert_eq!(parse_minutes("45"), Ok(45), "a plain number parses");
+    assert_eq!(parse_minutes("  30 \\n"), Ok(30), "surrounding whitespace is ignored");
+    assert_eq!(parse_minutes("90"), Ok(90), "90 minutes is allowed");
+    assert_eq!(parse_minutes("   "), Err(DurationError::Empty), "blank input is Empty");
+    assert_eq!(parse_minutes("ten"), Err(DurationError::NotANumber(String::from("ten"))), "text is NotANumber with the trimmed input");
+    assert_eq!(parse_minutes("-5"), Err(DurationError::NotANumber(String::from("-5"))), "negative numbers are NotANumber");
+    assert_eq!(parse_minutes("120"), Err(DurationError::TooLong(120)), "over 90 minutes is TooLong");
+    assert_eq!(total_minutes(&["30", "45", " 15 "]), Ok(90), "total_minutes adds valid durations");
+    assert_eq!(total_minutes(&[]), Ok(0), "no durations total zero");
+    assert_eq!(total_minutes(&["30", "abc", ""]), Err(DurationError::NotANumber(String::from("abc"))), "total_minutes stops at the first error");
+    assert_eq!(DurationError::Empty.to_string(), "duration is empty", "Display for Empty");
+    assert_eq!(DurationError::NotANumber(String::from("abc")).to_string(), "'abc' is not a number of minutes", "Display for NotANumber");
+    assert_eq!(DurationError::TooLong(120).to_string(), "120 minutes is longer than the 90-minute limit", "Display for TooLong");
+    requires_std_error(&DurationError::Empty);
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
     case 'foundations-making-decisions':
       return {
         files: {
