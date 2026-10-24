@@ -118,6 +118,7 @@ public class CurriculumInvariantTests
     [InlineData("rust-errors-panics")]
     [InlineData("rust-iterators-closures")]
     [InlineData("rust-smart-pointers")]
+    [InlineData("rust-concurrency-send-sync")]
     public void Authored_Rust_lessons_replace_their_templates(string slug)
     {
         var lesson = Curriculum.BySlug[slug];
