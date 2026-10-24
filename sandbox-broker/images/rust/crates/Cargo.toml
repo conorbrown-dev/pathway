@@ -1,0 +1,25 @@
+# Crates learners can use in graded Rust exercises. The image builds this project once; graders
+# then compile a submission against the prebuilt libraries with /usr/local/bin/pathway-rustc,
+# which needs no network and no Cargo at grading time.
+#
+# Adding a crate: add it here, use it in src/main.rs (so it is linked and appears in the rustc
+# command line), and add a smoke test to .github/workflows/sandbox-images.yml.
+[package]
+name = "pathway_crates"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "time", "sync", "io-util"] }
+axum = "0.8"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+
+[profile.dev]
+# Learner crates compile in debug for speed; the prebuilt dependencies match that profile.
+debug = 0

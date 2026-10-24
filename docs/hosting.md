@@ -102,11 +102,13 @@ Learner code runs in Vercel Sandbox microVMs: one per submission, network `deny-
 | Image | Base | Exercises |
 | --- | --- | --- |
 | `dotnet` | .NET 10 SDK + Python 3 | C#, Python |
-| `rust` | `rust:1.97-slim` | Rust |
+| `rust` | `rust:1.97-slim` + prebuilt crates (Tokio, Axum, tower, http-body-util, serde, serde_json, thiserror, anyhow) | Rust |
 | `node` | Node 22 + TypeScript 6 | React / TypeScript |
 | `tools` | Debian + git, sqlite3, coreutils, vim, jq, python3-yaml | Git, SQLite, Linux/Bash/Vim, Kubernetes, Claude hooks |
 
-The **Sandbox images** workflow builds all four on every pull request that touches them, and smoke-tests them: tool versions, writable `/workspace`, no network, and that `as-learner` really runs as uid 10001 with no way to write to `/etc` or regain privileges. On `main` it publishes them to the `pathway-broker` project's Vercel Container Registry. Publishing uses GitHub OIDC, so no token is stored. It needs, once:
+**Crates in Rust exercises.** The sandbox has no network, so the `rust` image builds `sandbox-broker/images/rust/crates` once and installs `/usr/local/bin/pathway-rustc`. That script runs `rustc` with the `--extern` and `-L` flags Cargo used for the project, so a fixture that needs Tokio or Axum compiles the submission with `pathway-rustc main.rs -o main`: no Cargo, no network and no writes outside `/workspace`. To offer a new crate, add it to `crates/Cargo.toml` and to the smoke probe in `rust/smoke/`.
+
+The **Sandbox images** workflow builds all four on every pull request that touches them, and smoke-tests them: tool versions, writable `/workspace`, no network, and that `as-learner` really runs as uid 10001 with no way to write to `/etc` or regain privileges. For `rust` it also compiles and runs a Tokio + Axum + serde probe through `pathway-rustc`, and runs every Rust grader against its pass/fail reference solutions inside the image (`scripts/fixtures-in-image.mjs`), as the learner and without network. On `main` it publishes them to the `pathway-broker` project's Vercel Container Registry. Publishing uses GitHub OIDC, so no token is stored. It needs, once:
 
 1. **Vercel → Team Settings → OIDC Federation** (or Container Registry access policies): trust GitHub repository `conorbrown-dev/pathway`, workflow `sandbox-images.yml`, branch `main`, with read-write access to Vercel Container Registry for project `pathway-broker`.
 2. **GitHub → Settings → Secrets and variables → Actions → Variables**: `VERCEL_TEAM_ID=team_tZoUI4vE4sNosuZNPZ31M3oO`, `VERCEL_TEAM_SLUG=carl-brown87-9852`, `VERCEL_SANDBOX_PROJECT_SLUG=pathway-broker`.
