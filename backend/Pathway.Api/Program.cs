@@ -516,6 +516,7 @@ static ValidationResult ValidateCode(Lesson lesson, string code)
             "rust-ownership" => code.Contains("fn take_name", StringComparison.Ordinal) && code.Contains("String", StringComparison.Ordinal) && code.Contains(".len()", StringComparison.Ordinal),
             "rust-structs-enums" => code.Contains("enum Enrollment", StringComparison.Ordinal) && code.Contains("fn accept", StringComparison.Ordinal) && code.Contains("fn complete_lesson", StringComparison.Ordinal) && code.Contains("fn summary", StringComparison.Ordinal) && code.Contains("match", StringComparison.Ordinal),
             "rust-errors-panics" => code.Contains("enum DurationError", StringComparison.Ordinal) && code.Contains("fn parse_minutes", StringComparison.Ordinal) && code.Contains("fn total_minutes", StringComparison.Ordinal) && code.Contains("impl std::error::Error", StringComparison.Ordinal),
+            "rust-iterators-closures" => code.Contains("struct Attempt", StringComparison.Ordinal) && code.Contains("fn passing_learners", StringComparison.Ordinal) && code.Contains("fn average_score", StringComparison.Ordinal) && code.Contains("fn best_by_learner", StringComparison.Ordinal) && code.Contains("fn make_grader", StringComparison.Ordinal),
             "rust-traits-generics" => code.Contains("trait Billable", StringComparison.Ordinal) && code.Contains("impl Billable for Seat", StringComparison.Ordinal) && code.Contains("impl Billable for Workspace", StringComparison.Ordinal) && code.Contains("dyn Billable", StringComparison.Ordinal),
             _ => false
         };
