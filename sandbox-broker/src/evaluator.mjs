@@ -321,6 +321,36 @@ fn main() {
         tests: 4,
         runtime: 'rust',
       }
+    case 'rust-smart-pointers':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    let path = Path::Step(String::from("ownership"), Box::new(Path::Step(String::from("borrowing"), Box::new(Path::End))));
+    assert_eq!(path_len(&Path::End), 0, "an empty path has no steps");
+    assert_eq!(path_len(&path), 2, "path_len counts every Step through the boxes");
+
+    let roster = new_roster();
+    let other_view = std::rc::Rc::clone(&roster);
+    assert_eq!(std::rc::Rc::strong_count(&roster), 2, "cloning an Rc shares the roster instead of copying it");
+    assert!(enroll(&roster, "ada"), "enrolling a new learner returns true");
+    assert!(!enroll(&other_view, "ada"), "enrolling the same learner through another handle returns false");
+    assert!(enroll(&other_view, "lin"), "another handle can enroll a new learner");
+    assert_eq!(roster_size(&roster), 2, "every handle sees the same learners");
+    assert_eq!(roster_size(&other_view), 2, "every handle sees the same learners");
+    drop(other_view);
+    assert_eq!(std::rc::Rc::strong_count(&roster), 1, "dropping a handle lowers the count");
+
+    assert_eq!(count_in_threads(4, 1_000), 4_000, "all threads add to one shared counter");
+    assert_eq!(count_in_threads(1, 7), 7, "one thread counts on its own");
+    assert_eq!(count_in_threads(0, 10), 0, "no threads count nothing");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
     case 'foundations-making-decisions':
       return {
         files: {

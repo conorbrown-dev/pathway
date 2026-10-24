@@ -10,6 +10,7 @@ static partial class Curriculum
         "rust-traits-generics" => RustTraitsGenerics(lesson),
         "rust-errors-panics" => RustErrorsPanics(lesson),
         "rust-iterators-closures" => RustIteratorsClosures(lesson),
+        "rust-smart-pointers" => RustSmartPointers(lesson),
         _ => lesson
     };
 
@@ -702,5 +703,188 @@ static partial class Curriculum
             [],
             "`attempts.iter().filter(...).map(|a| a.learner.as_str()).collect()` gives borrowed names. For the average, convert the total to `f64` before dividing. Use `entry(...).or_insert(...)` and `max` for the best scores. The grader needs `move |score| ...` so it owns `pass_mark`.",
             ["Passing names keep their order", "The average is exact, and None for no attempts", "Each learner keeps their best score", "A grader closure remembers its own pass mark"]),
+    };
+    private static Lesson RustSmartPointers(Lesson lesson) => lesson with
+    {
+        Subtitle = "Pick the smallest tool that fits: a box, shared ownership, a runtime borrow check, or a lock.",
+        Concept = "`Box` puts one owned value on the heap. `Rc` and `Arc` let several owners share a value. `RefCell` and `Mutex` allow changing shared data by checking the borrow rules while the program runs instead of at compile time.",
+        Body = """
+            ## Why plain references aren't always enough
+            Ownership and borrowing cover most code: one owner, many readers or one writer, all checked at compile time. Three situations need something more:
+
+            1. A type that contains itself, such as a tree or a linked list, which has no fixed size.
+            2. A value with several owners, where none of them is clearly in charge of freeing it.
+            3. Changing data that is shared, when the compiler can't prove that only one writer exists at a time.
+
+            Each standard smart pointer solves one of these, and each costs something. Choose the smallest that fits.
+
+            ## Box: one owner, data on the heap
+            `Box<T>` owns a `T` stored on the heap. The box itself is a single pointer: 8 bytes on a 64-bit machine. It frees the value when the box is dropped, exactly like any owned value.
+
+            Use it when:
+
+            - **A type is recursive.** This doesn't compile, because `Path` would contain a whole `Path`, infinitely: `enum Path { End, Step(String, Path) }`. Rust reports E0072, *recursive type has infinite size*. A `Box` breaks the loop with a pointer of known size:
+
+            ```rust
+            enum Path {
+                End,
+                Step(String, Box<Path>),
+            }
+
+            fn path_len(path: &Path) -> usize {
+                match path {
+                    Path::End => 0,
+                    Path::Step(_, rest) => 1 + path_len(rest),
+                }
+            }
+            ```
+
+            - **You need a trait object**, `Box<dyn Trait>`, as in the traits lesson.
+            - **A value is large** and you want moves to copy one pointer instead of the whole value.
+
+            ## Rc: shared ownership on one thread
+            `Rc<T>` (reference counted) lets several parts of a program own the same value. `Rc::clone(&a)` doesn't copy the data. It adds one to a counter and returns another pointer to the same allocation. When the last `Rc` is dropped, the count reaches zero and the value is freed.
+
+            ```rust
+            use std::rc::Rc;
+
+            let course = Rc::new(String::from("Rust Systems"));
+            let for_lesson = Rc::clone(&course);
+            assert_eq!(Rc::strong_count(&course), 2);
+            ```
+
+            Write `Rc::clone(&x)` rather than `x.clone()`. Both work, but the first shows a reader that only a counter changes, not a deep copy.
+
+            `Rc` gives shared *read-only* access: you can't get `&mut T` out of it, because another owner might be reading. It is also not thread-safe, and the compiler stops you sending it to another thread.
+
+            Two `Rc`s that point at each other never reach a count of zero, so the memory leaks. Break cycles with `Weak<T>` (`Rc::downgrade`), a pointer that doesn't keep the value alive. Typically a child holds a `Weak` to its parent.
+
+            ## RefCell: borrow checking at runtime
+            `RefCell<T>` lets you change a value through a shared reference. It still enforces the rules (any number of readers *or* one writer), but it checks them while the program runs:
+
+            - `.borrow()` returns a read guard.
+            - `.borrow_mut()` returns a write guard.
+            - Breaking the rules, for example calling `borrow_mut` while a `borrow` guard is still alive, panics with **RefCell already borrowed**.
+
+            ```rust
+            use std::cell::RefCell;
+            use std::rc::Rc;
+
+            let roster: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+            let view = Rc::clone(&roster);
+
+            roster.borrow_mut().push(String::from("ada")); // guard dropped at the end of the statement
+            assert_eq!(view.borrow().len(), 1);             // the other owner sees the change
+            ```
+
+            `Rc<RefCell<T>>` is the standard single-threaded pattern for "shared and changeable". Keep each guard short-lived; holding a `borrow_mut()` guard in a variable while calling code that also borrows is the usual cause of that panic. `try_borrow_mut()` returns a `Result` instead of panicking.
+
+            For small `Copy` values such as counters and flags, `Cell<T>` is simpler: `get()` and `set()` copy values in and out, so there are no guards and no panics.
+
+            ## Arc and Mutex: the same ideas across threads
+            Threads need the thread-safe versions:
+
+            - `Arc<T>` is `Rc` with an atomic counter. It's slightly slower, and safe to share between threads.
+            - `Mutex<T>` is the thread-safe `RefCell`. `.lock()` blocks until no other thread holds the lock, then returns a guard that unlocks when dropped.
+
+            ```rust
+            use std::sync::{Arc, Mutex};
+            use std::thread;
+
+            let counter = Arc::new(Mutex::new(0));
+            let handles: Vec<_> = (0..4)
+                .map(|_| {
+                    let counter = Arc::clone(&counter);
+                    thread::spawn(move || *counter.lock().unwrap() += 1)
+                })
+                .collect();
+            for handle in handles {
+                handle.join().unwrap();
+            }
+            assert_eq!(*counter.lock().unwrap(), 4);
+            ```
+
+            `lock()` returns a `Result` because a mutex becomes *poisoned* if a thread panicked while holding it. The data might be half-updated, and `unwrap` passes that panic on. `RwLock<T>` allows many readers or one writer. It helps only when reads vastly outnumber writes, so measure first. The next lesson covers threads, `Send` and `Sync` in depth.
+
+            ## Choosing
+            - One owner, with the value on the heap, a recursive type or a trait object: `Box<T>`.
+            - Many owners, read-only, one thread: `Rc<T>`.
+            - Many owners, changeable, one thread: `Rc<RefCell<T>>`, or `Cell<T>` for small `Copy` values.
+            - Many owners, read-only, many threads: `Arc<T>`.
+            - Many owners, changeable, many threads: `Arc<Mutex<T>>` or `Arc<RwLock<T>>`.
+            - A back-reference that mustn't keep the value alive: `Weak<T>`.
+
+            Each step down that list moves a guarantee from compile time to run time and adds a little cost: a counter, a check, a lock.
+
+            ## Common mistakes
+            - Reaching for `Rc<RefCell<T>>` to make borrow errors go away. Usually the design wants a clear owner and plain borrows; restructure first.
+            - Holding a `RefCell` or `Mutex` guard longer than needed. That causes "already borrowed" panics, slow code under contention, and deadlocks.
+            - `Arc<Mutex<T>>` where each thread could own its own data and send results back over a channel.
+            - Reference cycles between `Rc`s, which leak memory silently.
+            - `x.clone()` on an `Rc` when a reader will assume it's a deep copy.
+
+            ## Try it locally
+            1. Write `enum Path { End, Step(String, Path) }` without the box and read E0072. Add `Box` and implement `path_len`.
+            2. Create an `Rc`, clone it twice, and print `Rc::strong_count` before and after dropping a clone.
+            3. Hold a `.borrow()` guard in a variable, then call `.borrow_mut()` on the same `RefCell`. Read the panic, then fix it by ending the first borrow sooner.
+            4. Write the threaded counter without `Mutex`, so `Arc<usize>` only, and read why `+= 1` won't compile.
+            """,
+        Example = """
+            use std::cell::RefCell;
+            use std::rc::Rc;
+
+            let roster = Rc::new(RefCell::new(Vec::new()));
+            let view = Rc::clone(&roster);
+
+            roster.borrow_mut().push(String::from("ada"));
+            assert_eq!(view.borrow().len(), 1);
+            assert_eq!(Rc::strong_count(&roster), 2);
+            """,
+        Exercise = new Exercise(
+            ExerciseKind.Code,
+            "Use Box, Rc with RefCell, and Arc with Mutex",
+            "Implement a recursive type with `Box`, a roster that several owners share and change with `Rc<RefCell<...>>`, and a counter that threads share with `Arc<Mutex<...>>`. The grader compiles your code with its own `main`, so don't write a `main` function.",
+            [
+                "`enum Path { End, Step(String, Box<Path>) }` and `fn path_len(path: &Path) -> usize`, the number of `Step`s",
+                "`fn new_roster() -> Rc<RefCell<Vec<String>>>` returns an empty shared roster",
+                "`fn enroll(roster: &Rc<RefCell<Vec<String>>>, name: &str) -> bool` adds the name and returns `true`, or returns `false` if it's already there. Every clone of the `Rc` must see the change",
+                "`fn roster_size(roster: &Rc<RefCell<Vec<String>>>) -> usize`",
+                "`fn count_in_threads(threads: usize, per_thread: usize) -> usize`: start `threads` threads that each add 1 to one shared counter `per_thread` times, wait for them all, and return the total",
+            ],
+            """
+            use std::cell::RefCell;
+            use std::rc::Rc;
+            use std::sync::{Arc, Mutex};
+            use std::thread;
+
+            enum Path {
+                End,
+                Step(String, Box<Path>),
+            }
+
+            fn path_len(path: &Path) -> usize {
+                todo!()
+            }
+
+            fn new_roster() -> Rc<RefCell<Vec<String>>> {
+                todo!()
+            }
+
+            fn enroll(roster: &Rc<RefCell<Vec<String>>>, name: &str) -> bool {
+                todo!()
+            }
+
+            fn roster_size(roster: &Rc<RefCell<Vec<String>>>) -> usize {
+                todo!()
+            }
+
+            fn count_in_threads(threads: usize, per_thread: usize) -> usize {
+                todo!()
+            }
+            """,
+            null,
+            [],
+            "`path_len` can recurse through the box with `match`. For the roster, change the `Vec` through `roster.borrow_mut()`, not a clone of it. For the counter, give each thread an `Arc::clone` of one `Arc<Mutex<usize>>`, `join` every handle, then read the total with `lock()`.",
+            ["Recursion through a Box counts every step", "All Rc handles share one roster", "Enrolling twice is refused", "Threads add to one shared counter"]),
     };
 }
