@@ -288,6 +288,39 @@ fn main() {
         tests: 4,
         runtime: 'rust',
       }
+    case 'rust-iterators-closures':
+      return {
+        files: { 'main.rs': `${code}
+
+fn attempt(learner: &str, score: u32) -> Attempt {
+    Attempt { learner: String::from(learner), score }
+}
+
+fn main() {
+    let attempts = vec![attempt("ada", 72), attempt("lin", 45), attempt("ada", 91), attempt("sam", 60), attempt("lin", 60)];
+    assert_eq!(passing_learners(&attempts, 60), vec!["ada", "ada", "sam", "lin"], "passing_learners keeps order and includes scores equal to the pass mark");
+    assert_eq!(passing_learners(&attempts, 100), Vec::<&str>::new(), "nobody passes an impossible mark");
+    assert_eq!(average_score(&attempts), Some(65.6), "average_score is the mean as f64");
+    assert_eq!(average_score(&[attempt("ada", 2), attempt("lin", 3)]), Some(2.5), "average_score does not use integer division");
+    assert_eq!(average_score(&[]), None, "average_score of nothing is None");
+    let best = best_by_learner(&attempts);
+    assert_eq!(best.get("ada"), Some(&91), "best_by_learner keeps the highest score");
+    assert_eq!(best.get("lin"), Some(&60), "best_by_learner keeps the highest score even when it comes last");
+    assert_eq!(best.len(), 3, "best_by_learner has one entry per learner");
+    assert_eq!(best.keys().map(|name| name.as_str()).collect::<Vec<_>>(), vec!["ada", "lin", "sam"], "best_by_learner is a BTreeMap ordered by name");
+    let grader = make_grader(70);
+    assert!(grader(70) && grader(95), "the grader passes scores at or above its mark");
+    assert!(!grader(69), "the grader fails scores below its mark");
+    let strict = make_grader(90);
+    let passed = attempts.iter().filter(|a| strict(a.score)).count();
+    assert_eq!(passed, 1, "each grader remembers its own pass mark");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
     case 'foundations-making-decisions':
       return {
         files: {

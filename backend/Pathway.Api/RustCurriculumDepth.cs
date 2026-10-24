@@ -9,6 +9,7 @@ static partial class Curriculum
         "rust-structs-enums" => RustStructsEnums(lesson),
         "rust-traits-generics" => RustTraitsGenerics(lesson),
         "rust-errors-panics" => RustErrorsPanics(lesson),
+        "rust-iterators-closures" => RustIteratorsClosures(lesson),
         _ => lesson
     };
 
@@ -518,5 +519,188 @@ static partial class Curriculum
             [],
             "Parse with `text.parse::<u32>()` and turn its error into yours with `.map_err(|_| DurationError::NotANumber(text.to_string()))?`. In `total_minutes`, add up `parse_minutes(input)?` in a loop: `?` returns the first error for you. Use `write!(f, ...)` inside `Display`.",
             ["Valid durations parse, ignoring whitespace", "Each kind of bad input becomes the right error", "The total stops at the first error", "Messages match exactly"]),
+    };
+    private static Lesson RustIteratorsClosures(Lesson lesson) => lesson with
+    {
+        Subtitle = "Describe what to do with a sequence, not how to step through it, and capture context with closures.",
+        Concept = "An iterator produces values one at a time. Adapters like `map` and `filter` are lazy: nothing runs until a consumer such as `collect` or `sum` pulls values through. Closures are small anonymous functions that can borrow or take the variables around them.",
+        Body = """
+            ## From loops to pipelines
+            A `for` loop says *how* to walk a list. An iterator pipeline says *what* you want from it:
+
+            ```rust
+            // Loop: index bookkeeping and a mutable result.
+            let mut names = Vec::new();
+            for attempt in &attempts {
+                if attempt.score >= 60 {
+                    names.push(attempt.learner.clone());
+                }
+            }
+
+            // Pipeline: the same result, read top to bottom.
+            let names: Vec<String> = attempts
+                .iter()
+                .filter(|attempt| attempt.score >= 60)
+                .map(|attempt| attempt.learner.clone())
+                .collect();
+            ```
+
+            Both compile to similar machine code. Iterators remove off-by-one indexing and bounds checks the compiler can't otherwise prove away, and each step can be read on its own.
+
+            ## Three ways to iterate a collection
+            Which method you call decides what the loop receives, and whether the collection survives:
+
+            - `.iter()` yields `&T`: shared borrows. The collection is untouched. This is what `for x in &items` uses.
+            - `.iter_mut()` yields `&mut T`, so you can change items in place: `for x in &mut items`.
+            - `.into_iter()` yields `T` and consumes the collection. This is what `for x in items` uses, and `items` can't be used afterwards.
+
+            Most "borrowed value does not live long enough" and "use of moved value" errors around loops come down to this choice.
+
+            ## Adapters are lazy; consumers drive them
+            An *adapter* (`map`, `filter`, `enumerate`, `zip`, `take`, `skip`, `chain`, `flat_map`, `rev`) wraps an iterator and returns another iterator. On its own it does nothing:
+
+            ```rust
+            let doubled = numbers.iter().map(|n| n * 2); // nothing has run yet
+            ```
+
+            The compiler warns about this: *unused `Map` that must be used: iterators are lazy and do nothing unless consumed*. A *consumer* pulls values through the whole chain:
+
+            - `collect()` builds a collection. The type annotation chooses which: `Vec<_>`, `HashMap<_, _>`, `String`, even `Result<Vec<_>, E>`, which stops at the first error.
+            - `sum()`, `count()`, `min()`, `max()`, `max_by_key()`.
+            - `any()`, `all()`, `find()`, `position()`. These stop as soon as they know the answer.
+            - `fold(initial, |acc, item| ...)`, the general form every other consumer can be written with.
+            - `for_each`, or simply a `for` loop.
+
+            Laziness means a chain processes one item at a time end to end, with no intermediate `Vec`s. It also works on endless sequences: `(1..).map(|n| n * n).take_while(|n| *n < 100)`.
+
+            ## Closures and what they capture
+            A closure is an anonymous function written `|parameters| body`. Unlike a `fn`, it can use variables from the scope where it is defined:
+
+            ```rust
+            let pass_mark = 70;
+            let passed = |score: u32| score >= pass_mark; // borrows pass_mark
+            println!("{}", passed(85));
+            ```
+
+            The compiler picks the least powerful way to capture each variable, and that choice sets which trait the closure implements:
+
+            - **`Fn`**: only reads what it captured. Can be called any number of times, even concurrently.
+            - **`FnMut`**: changes something it captured, such as a counter. Needs a mutable binding to call.
+            - **`FnOnce`**: moves a captured value out, so it can be called only once.
+
+            Every `Fn` is also `FnMut`, and every `FnMut` is also `FnOnce`. Functions that accept closures ask for the weakest bound they need: `map` takes `FnMut`, and `thread::spawn` takes `FnOnce`.
+
+            The `move` keyword makes a closure take ownership of what it captures instead of borrowing. You need it when the closure outlives the current scope: returning it from a function, or sending it to another thread.
+
+            ```rust
+            fn make_grader(pass_mark: u32) -> impl Fn(u32) -> bool {
+                move |score| score >= pass_mark // pass_mark is copied into the closure
+            }
+            ```
+
+            Without `move`, the closure would borrow `pass_mark`, a parameter that disappears when `make_grader` returns, and the compiler rejects it with E0373.
+
+            `impl Fn(u32) -> bool` means "some closure type with this signature". Every closure has its own unnamed type, so you return it with `impl Fn` (one fixed type, no allocation) or `Box<dyn Fn(u32) -> bool>` (different closures from different branches, at the cost of a heap allocation and dynamic dispatch).
+
+            ## Building maps with the entry API
+            Grouping and keeping a best-so-far value per key come up constantly. `entry` looks a key up once and lets you insert or update:
+
+            ```rust
+            use std::collections::BTreeMap;
+
+            let mut best: BTreeMap<String, u32> = BTreeMap::new();
+            for attempt in &attempts {
+                best.entry(attempt.learner.clone())
+                    .and_modify(|score| *score = (*score).max(attempt.score))
+                    .or_insert(attempt.score);
+            }
+            ```
+
+            `BTreeMap` keeps keys sorted. `HashMap` is usually faster but iterates in an arbitrary order, which matters when output order shows up in tests or in a UI.
+
+            ## Writing your own iterator
+            Implement one method, `next`, and every adapter and consumer becomes available:
+
+            ```rust
+            struct Countdown(u32);
+
+            impl Iterator for Countdown {
+                type Item = u32;
+
+                fn next(&mut self) -> Option<u32> {
+                    if self.0 == 0 {
+                        return None;
+                    }
+                    self.0 -= 1;
+                    Some(self.0 + 1)
+                }
+            }
+
+            let total: u32 = Countdown(3).sum(); // 3 + 2 + 1
+            ```
+
+            ## Common mistakes
+            - Forgetting a consumer, so the chain never runs.
+            - `.iter().cloned().collect()` to make a copy you then only read. Borrow instead.
+            - Calling `collect()` in the middle of a chain just to call another adapter. Keep the chain lazy until the end.
+            - Integer division when averaging: convert to `f64` *before* dividing.
+            - Side effects inside `map`. Use `for_each` or a `for` loop when the point is the effect, not a new value.
+            - Squeezing everything into one clever chain. A plain `for` loop is idiomatic Rust when it reads more clearly.
+
+            ## Try it locally
+            1. Rewrite a `for` loop from an earlier exercise as an iterator chain, then back. Compare which reads better.
+            2. Create a `map` without consuming it and read the compiler's warning.
+            3. Write a closure that increments a captured counter. Try calling it through an immutable binding and read the error. Then return a closure from a function without `move` and read E0373.
+            4. Implement `Iterator` for a struct of your own and use `filter` and `sum` on it.
+            """,
+        Example = """
+            let passing: Vec<&str> = attempts
+                .iter()
+                .filter(|attempt| attempt.score >= pass_mark)
+                .map(|attempt| attempt.learner.as_str())
+                .collect();
+
+            let grader = move |score: u32| score >= pass_mark;
+            """,
+        Exercise = new Exercise(
+            ExerciseKind.Code,
+            "Report on quiz attempts with iterators and closures",
+            "Define `Attempt` and four functions that analyse a list of attempts. Iterators and closures are the natural fit, but any correct code passes. The grader compiles your code with its own `main`, so don't write a `main` function.",
+            [
+                "`struct Attempt { learner: String, score: u32 }`",
+                "`fn passing_learners(attempts: &[Attempt], pass_mark: u32) -> Vec<&str>`: the names of attempts scoring at least `pass_mark`, in their original order",
+                "`fn average_score(attempts: &[Attempt]) -> Option<f64>`: the mean score, or `None` when there are no attempts",
+                "`fn best_by_learner(attempts: &[Attempt]) -> std::collections::BTreeMap<String, u32>`: each learner's highest score",
+                "`fn make_grader(pass_mark: u32) -> impl Fn(u32) -> bool`: a closure that returns true for scores at or above `pass_mark`",
+            ],
+            """
+            use std::collections::BTreeMap;
+
+            struct Attempt {
+                learner: String,
+                score: u32,
+            }
+
+            fn passing_learners(attempts: &[Attempt], pass_mark: u32) -> Vec<&str> {
+                todo!()
+            }
+
+            fn average_score(attempts: &[Attempt]) -> Option<f64> {
+                todo!()
+            }
+
+            fn best_by_learner(attempts: &[Attempt]) -> BTreeMap<String, u32> {
+                todo!()
+            }
+
+            fn make_grader(pass_mark: u32) -> impl Fn(u32) -> bool {
+                // Return a closure that compares its score with pass_mark.
+                move |score| todo!()
+            }
+            """,
+            null,
+            [],
+            "`attempts.iter().filter(...).map(|a| a.learner.as_str()).collect()` gives borrowed names. For the average, convert the total to `f64` before dividing. Use `entry(...).or_insert(...)` and `max` for the best scores. The grader needs `move |score| ...` so it owns `pass_mark`.",
+            ["Passing names keep their order", "The average is exact, and None for no attempts", "Each learner keeps their best score", "A grader closure remembers its own pass mark"]),
     };
 }
