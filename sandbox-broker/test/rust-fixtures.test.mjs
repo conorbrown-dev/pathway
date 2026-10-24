@@ -13,6 +13,7 @@ import { evaluationResult, fixtureFor } from '../src/evaluator.mjs'
 
 const solutionsDir = fileURLToPath(new URL('./rust-solutions/', import.meta.url))
 const hasRustc = spawnSync('rustc', ['--version']).status === 0
+const hasPathwayRustc = spawnSync('sh', ['-c', 'command -v pathway-rustc']).status === 0
 const skip = !hasRustc && !process.env.PATHWAY_REQUIRE_RUSTC
 
 test('rustc is available when required', { skip: !process.env.PATHWAY_REQUIRE_RUSTC }, () => assert.ok(hasRustc, 'rustc is not installed'))
@@ -39,7 +40,11 @@ test('every Rust reference solution has a known outcome', () => {
 for (const name of solutions) {
   const slug = name.split('.')[0]
   const shouldPass = name.endsWith('.pass.rs')
-  test(`${slug}: ${name} ${shouldPass ? 'passes' : 'fails'}`, { skip }, () => {
+  // Fixtures that link prebuilt crates compile with pathway-rustc, which exists only inside the rust
+  // image; the Sandbox images workflow runs those there (scripts/fixtures-in-image.mjs).
+  const needsCrates = fixtureFor(slug, '')?.command.some(part => part.includes('pathway-rustc'))
+  const crateSkip = needsCrates && !hasPathwayRustc ? 'needs the rust image (run by scripts/fixtures-in-image.mjs)' : false
+  test(`${slug}: ${name} ${shouldPass ? 'passes' : 'fails'}`, { skip: skip || crateSkip }, () => {
     const result = grade(slug, readFileSync(join(solutionsDir, name), 'utf8'))
     assert.equal(result.passed, shouldPass, result.output.slice(0, 2_000))
   })

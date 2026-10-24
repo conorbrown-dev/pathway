@@ -388,6 +388,63 @@ fn main() {
         tests: 4,
         runtime: 'rust',
       }
+    case 'rust-async-tokio':
+      return {
+        files: { 'main.rs': `${code}
+
+static IN_FLIGHT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static MAX_IN_FLIGHT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Counts a call as finished when it completes *or* is cancelled. A timed-out future stops at its
+/// .await and never reaches code after it, so the decrement lives in Drop.
+struct PathwayInFlightGuard;
+
+impl Drop for PathwayInFlightGuard {
+    fn drop(&mut self) {
+        IN_FLIGHT.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Provided by the grader: a slow "remote call" that takes 100 ms.
+async fn slow_square(number: u64) -> u64 {
+    let now = IN_FLIGHT.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+    MAX_IN_FLIGHT.fetch_max(now, std::sync::atomic::Ordering::SeqCst);
+    let _in_flight = PathwayInFlightGuard;
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    number * number
+}
+
+#[tokio::main]
+async fn main() {
+    let started = std::time::Instant::now();
+    let squares = squares_concurrently((1..=10).collect()).await;
+    let elapsed = started.elapsed();
+    assert_eq!(squares, (1..=10u64).map(|n| n * n).collect::<Vec<_>>(), "squares_concurrently returns squares in input order");
+    assert!(elapsed < std::time::Duration::from_millis(600), "ten 100 ms calls should overlap, but took {elapsed:?}; await them concurrently, not one after another");
+    assert_eq!(squares_concurrently(Vec::new()).await, Vec::<u64>::new(), "no numbers, no squares");
+
+    assert_eq!(with_timeout(7, 1_000).await, Some(49), "a call that finishes in time returns Some");
+    assert_eq!(with_timeout(7, 20).await, None, "a call slower than the limit returns None");
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    assert_eq!(IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst), 0, "a timed-out call must not keep running in the background");
+
+    MAX_IN_FLIGHT.store(0, std::sync::atomic::Ordering::SeqCst);
+    let started = std::time::Instant::now();
+    let bounded = bounded_squares((1..=9).collect(), 3).await;
+    let elapsed = started.elapsed();
+    let peak = MAX_IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(bounded, (1..=9u64).map(|n| n * n).collect::<Vec<_>>(), "bounded_squares returns squares in input order");
+    assert!(peak <= 3, "bounded_squares ran {peak} calls at once; the limit is 3");
+    assert!(peak >= 2, "bounded_squares should still run calls concurrently (peak was {peak})");
+    assert!(elapsed < std::time::Duration::from_millis(900), "nine calls three at a time should take about 300 ms, but took {elapsed:?}");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        // pathway-rustc links the image's prebuilt Tokio (see images/rust/Dockerfile).
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
     case 'foundations-making-decisions':
       return {
         files: {
