@@ -395,12 +395,22 @@ fn main() {
 static IN_FLIGHT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 static MAX_IN_FLIGHT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
+/// Counts a call as finished when it completes *or* is cancelled. A timed-out future stops at its
+/// .await and never reaches code after it, so the decrement lives in Drop.
+struct PathwayInFlightGuard;
+
+impl Drop for PathwayInFlightGuard {
+    fn drop(&mut self) {
+        IN_FLIGHT.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
 /// Provided by the grader: a slow "remote call" that takes 100 ms.
 async fn slow_square(number: u64) -> u64 {
     let now = IN_FLIGHT.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
     MAX_IN_FLIGHT.fetch_max(now, std::sync::atomic::Ordering::SeqCst);
+    let _in_flight = PathwayInFlightGuard;
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    IN_FLIGHT.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
     number * number
 }
 
@@ -415,6 +425,8 @@ async fn main() {
 
     assert_eq!(with_timeout(7, 1_000).await, Some(49), "a call that finishes in time returns Some");
     assert_eq!(with_timeout(7, 20).await, None, "a call slower than the limit returns None");
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    assert_eq!(IN_FLIGHT.load(std::sync::atomic::Ordering::SeqCst), 0, "a timed-out call must not keep running in the background");
 
     MAX_IN_FLIGHT.store(0, std::sync::atomic::Ordering::SeqCst);
     let started = std::time::Instant::now();

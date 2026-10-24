@@ -1138,7 +1138,7 @@ static partial class Curriculum
             }
             ```
 
-            When a timeout fires, or `select!` picks another branch, the losing future is **dropped**, and that *is* cancellation. Its code simply stops at its last `.await` and its `Drop` cleanup runs. Design async functions so that stopping at any `.await` leaves things consistent: don't leave half-written state between two awaits.
+            When a timeout fires, or `select!` picks another branch, the losing future is **dropped**, and that *is* cancellation. Its code simply stops at its last `.await` and its `Drop` cleanup runs. Design async functions so that stopping at any `.await` leaves things consistent: don't leave half-written state between two awaits. Cleanup that must always happen, such as releasing a slot or decrementing a counter, belongs in a guard value's `Drop`, not on the line after an `.await` that might never resume. The grader for this lesson's exercise originally had exactly that bug: a cancelled call never decremented its in-flight counter.
 
             ## Limiting concurrency
             Spawning a task per item is easy, which makes it easy to send 10,000 simultaneous requests to a database that allows 50 connections. Bound how much runs at once with a `Semaphore`:
