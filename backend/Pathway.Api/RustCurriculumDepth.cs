@@ -8,6 +8,7 @@ static partial class Curriculum
     {
         "rust-structs-enums" => RustStructsEnums(lesson),
         "rust-traits-generics" => RustTraitsGenerics(lesson),
+        "rust-errors-panics" => RustErrorsPanics(lesson),
         _ => lesson
     };
 
@@ -358,5 +359,164 @@ static partial class Curriculum
             [],
             "Write `impl Billable for Seat { ... }` and the same for `Workspace`. Both totals can be `items.iter().map(|item| item.monthly_cents()).sum()`. The body is the same; only the parameter type decides between static and dynamic dispatch.",
             ["Each type bills its own way", "A generic total works for any Billable type", "An empty list costs nothing", "A trait-object total mixes types"]),
+    };
+    private static Lesson RustErrorsPanics(Lesson lesson) => lesson with
+    {
+        Subtitle = "Make failure part of the function's type, pass it up with `?`, and save panics for bugs.",
+        Concept = "A function that can fail returns `Result<T, E>`, so callers can't ignore the failure. `?` hands an error to the caller in one character. `panic!` is for broken invariants, never for input you expected to be wrong.",
+        Body = """
+            ## Two kinds of failure
+            Rust separates failures you expect from failures that mean the program itself is wrong.
+
+            - **Recoverable:** a file is missing, a learner typed "ten" instead of 10, a server timed out. These are normal events. The function returns `Result<T, E>` and the caller decides what to do.
+            - **Unrecoverable:** an index that "can't" be out of bounds is, or an invariant you rely on is broken. Continuing would be worse than stopping, so the program panics.
+
+            C# and Java use exceptions for both, and a method's signature doesn't say what it can throw. In Rust the signature tells you: if a function can fail in an expected way, the failure is in its return type, and the compiler warns if you ignore it.
+
+            ## Result in practice
+            `Result` is an ordinary enum: `Ok(T)` or `Err(E)`.
+
+            ```rust
+            fn parse_age(input: &str) -> Result<u8, std::num::ParseIntError> {
+                input.trim().parse::<u8>()
+            }
+
+            match parse_age("42") {
+                Ok(age) => println!("age {age}"),
+                Err(error) => println!("could not read an age: {error}"),
+            }
+            ```
+
+            Calling a function that returns `Result` and doing nothing with it triggers the `unused_must_use` warning. The compiler is telling you a failure went unhandled.
+
+            ## The ? operator
+            Writing a `match` for every call gets long. `?` does the common case for you. If the value is `Ok`, it unwraps it and carries on; if it's `Err`, it returns that error from the current function immediately.
+
+            ```rust
+            fn read_config(path: &str) -> Result<Config, ConfigError> {
+                let text = std::fs::read_to_string(path)?; // io::Error becomes ConfigError via From
+                let config = parse(&text)?;
+                Ok(config)
+            }
+            ```
+
+            `?` only works inside a function that itself returns `Result` (or `Option`). It also converts the error type: if your error type implements `From<std::io::Error>`, `?` calls that conversion for you. That's why `From` matters for error handling.
+
+            `main` can return a `Result` too, so `?` works there: `fn main() -> Result<(), Box<dyn std::error::Error>>`. A returned error prints its `Debug` form and exits with a non-zero code.
+
+            ## Designing your own error type
+            Library-style code should say exactly what went wrong. An enum is the natural shape: one variant per failure, each carrying the data a caller needs.
+
+            ```rust
+            use std::fmt;
+
+            #[derive(Debug, PartialEq)]
+            enum EnrollError {
+                CourseFull { capacity: u32 },
+                AlreadyEnrolled,
+                UnknownCourse(String),
+            }
+
+            impl fmt::Display for EnrollError {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    match self {
+                        EnrollError::CourseFull { capacity } => write!(f, "the course is full ({capacity} seats)"),
+                        EnrollError::AlreadyEnrolled => write!(f, "you are already enrolled"),
+                        EnrollError::UnknownCourse(id) => write!(f, "no course called '{id}'"),
+                    }
+                }
+            }
+
+            impl std::error::Error for EnrollError {}
+            ```
+
+            - `Debug` is for developers and logs.
+            - `Display` is the message a person reads, so write it as a sentence fragment without a trailing period.
+            - `std::error::Error` marks the type as an error. Other code can then box it as `Box<dyn Error>` or wrap it in a larger error with `source()`.
+
+            The `thiserror` crate generates the `Display` and `From` code from attributes, and `anyhow` gives applications one convenient error type with added context. Both are widely used. Learn the hand-written version first, so you know what they generate.
+
+            ## Converting between errors
+            A few methods on `Result` and `Option` do most of the plumbing:
+
+            - `map_err(|e| ...)` turns one error type into another, often to add context: `.map_err(|_| DurationError::NotANumber(text.to_string()))?`.
+            - `ok_or(err)` / `ok_or_else(|| err)` turn an `Option` into a `Result` when absence is an error.
+            - `unwrap_or(default)` and `unwrap_or_else(|e| ...)` recover with a fallback.
+            - `and_then` chains steps that can each fail.
+
+            ## When to panic
+            `unwrap()` and `expect("...")` panic when they meet an `Err` or `None`. They are fine:
+
+            - in tests, where a panic *is* the failure report;
+            - in short examples and prototypes;
+            - when you can prove the failure is impossible. Then use `expect` with a message saying why, for example `.expect("regex is a valid literal")`.
+
+            They are not fine for input from users, files, networks or anything else outside your control. A web service that panics on bad input lets one malformed request take down the worker serving it. Return an error instead, and let the HTTP layer turn it into a 400.
+
+            By default a panic unwinds the thread's stack, running `Drop` for everything on the way. A panic inside one thread doesn't stop the whole process unless it's the main thread. Some release builds set `panic = "abort"` to stop immediately and produce smaller binaries.
+
+            ## Common mistakes
+            - `.unwrap()` on parsing or I/O in real code paths.
+            - `Result<T, String>`. It works, but callers can't match on what went wrong. Use an enum.
+            - Logging an error and *also* returning it, so the same failure is reported twice. Handle it or pass it up, not both.
+            - Throwing away the original error with `map_err(|_| ...)` when its details would help. Keep it as a field or `source()` when it matters.
+            - Returning a sentinel such as `-1` or an empty string for failure. That is what `Result` and `Option` are for.
+
+            ## Try it locally
+            1. Write `fn parse_age(input: &str) -> Result<u8, ...>` and call it with "42", "abc" and "300". Print each outcome with `match`.
+            2. Write a function that reads a file and parses a number from it, using `?` for both steps. Make `main` return `Result<(), Box<dyn std::error::Error>>`.
+            3. Replace one `?` with `.unwrap()`, run it on a missing file, and read the panic message and exit code.
+            4. Add a test with `assert_eq!(parse_age("abc").is_err(), true)` and one asserting the exact error variant.
+            """,
+        Example = """
+            fn parse_minutes(input: &str) -> Result<u32, DurationError> {
+                let text = input.trim();
+                if text.is_empty() {
+                    return Err(DurationError::Empty);
+                }
+                let minutes: u32 = text
+                    .parse()
+                    .map_err(|_| DurationError::NotANumber(text.to_string()))?;
+                Ok(minutes)
+            }
+            """,
+        Exercise = new Exercise(
+            ExerciseKind.Code,
+            "Parse lesson durations without panicking",
+            "Define an error type for durations and two functions that return it. Bad input must come back as an `Err`, never a panic. The grader compiles your code with its own `main`, so don't write a `main` function.",
+            [
+                "`#[derive(Debug, PartialEq)] enum DurationError` with variants `Empty`, `NotANumber(String)` and `TooLong(u32)`",
+                "`impl std::fmt::Display for DurationError` with the messages `duration is empty`, `'<text>' is not a number of minutes` and `<n> minutes is longer than the 90-minute limit`, and `impl std::error::Error for DurationError {}`",
+                "`fn parse_minutes(input: &str) -> Result<u32, DurationError>`: trim the input. Blank input is `Empty`, anything that isn't a whole number is `NotANumber` holding the trimmed text, and more than 90 is `TooLong`",
+                "`fn total_minutes(inputs: &[&str]) -> Result<u32, DurationError>` adds every duration and returns the first error it meets",
+            ],
+            """
+            use std::fmt;
+
+            #[derive(Debug, PartialEq)]
+            enum DurationError {
+                // Empty, NotANumber(String), TooLong(u32)
+            }
+
+            impl fmt::Display for DurationError {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    todo!()
+                }
+            }
+
+            impl std::error::Error for DurationError {}
+
+            fn parse_minutes(input: &str) -> Result<u32, DurationError> {
+                todo!()
+            }
+
+            fn total_minutes(inputs: &[&str]) -> Result<u32, DurationError> {
+                todo!()
+            }
+            """,
+            null,
+            [],
+            "Parse with `text.parse::<u32>()` and turn its error into yours with `.map_err(|_| DurationError::NotANumber(text.to_string()))?`. In `total_minutes`, add up `parse_minutes(input)?` in a loop: `?` returns the first error for you. Use `write!(f, ...)` inside `Display`.",
+            ["Valid durations parse, ignoring whitespace", "Each kind of bad input becomes the right error", "The total stops at the first error", "Messages match exactly"]),
     };
 }
