@@ -25,6 +25,7 @@ test.describe('public API contract', () => {
     await expect(catalog.json()).resolves.toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'computing-foundations', available: true }),
       expect.objectContaining({ id: 'electrical-engineering-foundations', available: true }),
+      expect.objectContaining({ id: 'precalculus', available: true }),
       expect.objectContaining({ id: 'git-cli', available: true }),
       expect.objectContaining({ id: 'web-development-basics', available: true }),
       expect.objectContaining({ id: 'sqlite', available: true }),
@@ -59,7 +60,7 @@ test.describe('public API contract', () => {
     expect((await request.post(`${apiBaseUrl}/api/submissions/validate`, { data: { lessonSlug: 'not-a-lesson', answer: 'anything' } })).status()).toBe(404)
   })
 
-  for (const courseId of ['computing-foundations', 'electrical-engineering-foundations', 'git-cli', 'web-development-basics', 'sqlite', 'linux-cli-bash-vim', 'react-lite', 'react-enterprise', 'csharp-dotnet', 'python-web', 'rust-systems']) {
+  for (const courseId of ['computing-foundations', 'electrical-engineering-foundations', 'precalculus', 'git-cli', 'web-development-basics', 'sqlite', 'linux-cli-bash-vim', 'react-lite', 'react-enterprise', 'csharp-dotnet', 'python-web', 'rust-systems']) {
     test(`${courseId} has contiguous lessons and representative next-lesson links`, async ({ request }) => {
       const courseResponse = await request.get(`${apiBaseUrl}/api/courses/${courseId}`)
       await expect(courseResponse).toBeOK()
@@ -354,6 +355,41 @@ test.describe('public API contract', () => {
     const outsideTolerance = await request.post(`${apiBaseUrl}/api/submissions/validate`, { headers, data: { lessonSlug: 'ee-ohms-law', answer: '40', unit: 'mA' } })
     await expect(outsideTolerance).toBeOK()
     await expect(outsideTolerance.json()).resolves.toMatchObject({ passed: false, nextLessonSlug: null })
+  })
+
+  test('serves Precalculus with real-world models and validates numeric answers with units', async ({ request }) => {
+    const courseResponse = await request.get(`${apiBaseUrl}/api/courses/precalculus`)
+    await expect(courseResponse).toBeOK()
+    const summaries = orderedLessons(await courseResponse.json() as Course)
+    expect(summaries[0]).toMatchObject({ slug: 'math-negative-numbers', order: 1 })
+    expect(summaries.at(-1)).toMatchObject({ slug: 'math-precalc-capstone' })
+    expect(summaries.map(lesson => lesson.slug)).toEqual(expect.arrayContaining([
+      'math-slope',
+      'math-quadratics',
+      'math-logarithms',
+      'math-unit-circle',
+    ]))
+
+    const lessonResponse = await request.get(`${apiBaseUrl}/api/lessons/math-negative-numbers`)
+    await expect(lessonResponse).toBeOK()
+    const lesson = await lessonResponse.json() as { body: string; exercise: Record<string, unknown> }
+    expect(lesson.body).toContain('What the symbols stand for')
+    expect(lesson.exercise).toMatchObject({ kind: 'Numeric', unit: 'ft' })
+    for (const field of ['expectedNumeric', 'tolerance', 'workedSolution', 'correctAnswer'])
+      expect(lesson.exercise).not.toHaveProperty(field)
+
+    const headers = { 'X-Learner-Id': `precalc-numeric-${crypto.randomUUID()}` }
+    const validate = (lessonSlug: string, answer: string, unit: string) =>
+      request.post(`${apiBaseUrl}/api/submissions/validate`, { headers, data: { lessonSlug, answer, unit } })
+
+    const depth = await validate('math-negative-numbers', '260', 'ft')
+    await expect(depth).toBeOK()
+    await expect(depth.json()).resolves.toMatchObject({ passed: true, nextLessonSlug: 'math-order-of-operations', workedSolution: expect.stringContaining('260 ft deeper') })
+    await expect((await validate('math-negative-numbers', '79.25', 'm')).json()).resolves.toMatchObject({ passed: true })
+    await expect((await validate('math-negative-numbers', '440', 'ft')).json()).resolves.toMatchObject({ passed: false, nextLessonSlug: null })
+
+    await expect((await validate('math-inequalities', '7', 'generators')).json()).resolves.toMatchObject({ passed: true })
+    await expect((await validate('math-inequalities', '8', 'generators')).json()).resolves.toMatchObject({ passed: false })
   })
 
   test('serves component labs, a two-wire controller investigation, and a final safety assessment', async ({ request }) => {
