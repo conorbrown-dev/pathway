@@ -112,6 +112,30 @@ public class CurriculumInvariantTests
         });
     }
 
+    [Fact]
+    public void Precalculus_lessons_tie_math_to_situations_and_explain_every_step()
+    {
+        // Authoring rule (docs/precalculus-curriculum.md): every formula is anchored to a real or
+        // game situation, every letter is named as a variable or constant, and graded answers
+        // come with a plain-words worked solution and a real unit.
+        var lessons = LessonsOf("precalculus");
+        Assert.NotEmpty(lessons);
+        Assert.All(lessons, lesson =>
+        {
+            Assert.Equal("Precalculus", lesson.Version.Language);
+            Assert.NotEqual(lesson.Subtitle, lesson.Concept);
+            Assert.Contains("Where you'll see it", lesson.Body);
+            Assert.Contains("stand for", lesson.Body);
+            Assert.True(lesson.Exercise.Kind is ExerciseKind.Numeric or ExerciseKind.MultipleChoice, $"{lesson.Slug}: unexpected exercise kind.");
+            if (lesson.Exercise.Kind == ExerciseKind.Numeric)
+            {
+                Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.Unit), $"{lesson.Slug}: numeric answer has no unit.");
+                Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.WorkedSolution), $"{lesson.Slug}: numeric answer has no worked solution.");
+                Assert.True(lesson.Exercise.ExpectedNumeric is >= 0d, $"{lesson.Slug}: negative answers are awkward on mobile decimal keypads.");
+            }
+        });
+    }
+
     [Theory]
     [InlineData("rust-structs-enums")]
     [InlineData("rust-traits-generics")]

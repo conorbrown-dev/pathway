@@ -116,6 +116,8 @@ const courseBadgeText = (course: { id: string; languageId: string }) =>
                     ? "01"
                     : course.languageId === "electrical-engineering"
                       ? "EE"
+                      : course.languageId === "math"
+                      ? "f(x)"
                       : course.languageId === "git"
                         ? "Git"
                         : course.languageId === "web"
@@ -266,7 +268,7 @@ function App() {
   );
   useEffect(() => {
     if (course)
-      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
+      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.languageId === "math" ? "Precalculus" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
   }, [course]);
   const notify = (message: string) => {
     setToast(message);
@@ -749,6 +751,7 @@ function Onboarding({
   };
   const computingSelected = selectedCourseId === "computing-foundations";
   const electricalSelected = selectedCourseId === "electrical-engineering-foundations";
+  const precalculusSelected = selectedCourseId === "precalculus";
   const gitSelected = selectedCourseId === "git-cli";
   const webBasicsSelected = selectedCourseId === "web-development-basics";
   const sqliteSelected = selectedCourseId === "sqlite";
@@ -821,6 +824,18 @@ function Onboarding({
                   <small className="mt-1 block text-xs text-[#aaa3b6]">Circuits · measurement · components · signals</small>
                 </span>
                 {electricalSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
+              </button>
+              <button
+                aria-label="Select Precalculus course"
+                onClick={() => onSelectCourse("precalculus")}
+                className={`track-option mt-3 flex w-full items-center gap-4 rounded-xl p-4 text-left ${precalculusSelected ? "ring-1 ring-[#bd87ff]" : ""}`}
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#7a5bb5] font-mono text-xs font-bold text-white">f(x)</span>
+                <span>
+                  <strong className="block text-sm text-white">Precalculus</strong>
+                  <small className="mt-1 block text-xs text-[#aaa3b6]">Functions · growth · trigonometry · real-world models</small>
+                </span>
+                {precalculusSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
               </button>
               <button
                 onClick={() => onSelectCourse("git-cli")}
@@ -1581,7 +1596,22 @@ function WorkspacePanel({
     );
   }
   const stages =
-    course.id === "linux-cli-bash-vim"
+    course.id === "precalculus"
+      ? [
+          [
+            "Model the everyday",
+            "Turn rates, budgets, limits, and tiered prices from your own life or a favorite game into equations, and solve them with each step written in words.",
+          ],
+          [
+            "Curves and growth",
+            "Model an arcing shot, an average-cost curve, and a snowballing economy, then use logarithms to answer \"how long until?\"",
+          ],
+          [
+            "Precalculus capstone",
+            "Build a small game-economy or orbit model that combines linear, exponential, and trigonometric pieces, and explain which model fits each part and why.",
+          ],
+        ]
+      : course.id === "linux-cli-bash-vim"
       ? [
           [
             "Terminal fluency",

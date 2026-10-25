@@ -923,6 +923,7 @@ static partial class Curriculum
     public static readonly Lesson[] RustCourseLessons = NormalizeLessons(RustLessons.Skip(5));
 
     public static readonly Lesson[] ElectricalEngineeringLessons = BuildElectricalEngineeringLessons();
+    public static readonly Lesson[] PrecalculusLessons = BuildPrecalculusLessons();
     public static readonly Lesson[] ReactCourseLessons = BuildReactCourseLessons();
     public static readonly Lesson[] ReactLiteCourseLessons = BuildReactLiteCourseLessons();
     public static readonly Lesson[] WebBasicsLessons = BuildWebBasicsLessons();
@@ -933,6 +934,7 @@ static partial class Curriculum
 
     public static readonly Dictionary<string, Lesson> BySlug = ComputingLessons
         .Concat(ElectricalEngineeringLessons)
+        .Concat(PrecalculusLessons)
         .Concat(WebBasicsLessons)
         .Concat(TailwindLessons)
         .Concat(SQLiteLessons)
@@ -949,6 +951,7 @@ static partial class Curriculum
 
     public static readonly Course ComputingCourse = BuildCourse("computing-foundations", "Computing Foundations", "computing", "Core computing", "Machine · data · processes · OS", "2026-09-24", ComputingLessons);
     public static readonly Course ElectricalEngineeringCourse = BuildCourse("electrical-engineering-foundations", "Electrical Engineering Foundations", "electrical-engineering", "EE Foundations", "Circuits · measurement · components · practical builds", "2026-10-16", ElectricalEngineeringLessons);
+    public static readonly Course PrecalculusCourse = BuildCourse("precalculus", "Precalculus: math you can picture", "math", "Precalculus", "Functions · growth · trigonometry · real-world models", "2026-10-25", PrecalculusLessons);
     public static readonly Course GitCliCourse = BuildCourse("git-cli", "Git CLI", "git", "Git CLI", "Repositories · branches · remotes · recovery", "2026-09-26", GitCliLessons);
     public static readonly Course WebBasicsCourse = BuildCourse("web-development-basics", "Web Development Basics 2026", "web", "Web Platform 2026", "HTML · CSS · JavaScript · TypeScript · HTTP", "2026-09-26", WebBasicsLessons);
     public static readonly Course TailwindCourse = BuildCourse("tailwind-css", "Tailwind CSS 2026: from utilities to Pathway", "tailwind", "Tailwind CSS v4", "Vite · Responsive UI · Design tokens", "2026-10-12", TailwindLessons);
@@ -966,6 +969,7 @@ static partial class Curriculum
     {
         [ComputingCourse.Id] = ComputingCourse,
         [ElectricalEngineeringCourse.Id] = ElectricalEngineeringCourse,
+        [PrecalculusCourse.Id] = PrecalculusCourse,
         [GitCliCourse.Id] = GitCliCourse,
         [WebBasicsCourse.Id] = WebBasicsCourse,
         [TailwindCourse.Id] = TailwindCourse,
@@ -984,6 +988,7 @@ static partial class Curriculum
     [
         new(ComputingCourse.Id, ComputingCourse.Title, ComputingCourse.LanguageId, ComputingCourse.LanguageVersion, ComputingCourse.FrameworkVersion, true),
         new(ElectricalEngineeringCourse.Id, ElectricalEngineeringCourse.Title, ElectricalEngineeringCourse.LanguageId, ElectricalEngineeringCourse.LanguageVersion, ElectricalEngineeringCourse.FrameworkVersion, true),
+        new(PrecalculusCourse.Id, PrecalculusCourse.Title, PrecalculusCourse.LanguageId, PrecalculusCourse.LanguageVersion, PrecalculusCourse.FrameworkVersion, true),
         new(GitCliCourse.Id, GitCliCourse.Title, GitCliCourse.LanguageId, GitCliCourse.LanguageVersion, GitCliCourse.FrameworkVersion, true),
         new(WebBasicsCourse.Id, WebBasicsCourse.Title, WebBasicsCourse.LanguageId, WebBasicsCourse.LanguageVersion, WebBasicsCourse.FrameworkVersion, true),
         new(TailwindCourse.Id, TailwindCourse.Title, TailwindCourse.LanguageId, TailwindCourse.LanguageVersion, TailwindCourse.FrameworkVersion, true),
