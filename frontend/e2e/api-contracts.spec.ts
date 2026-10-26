@@ -363,7 +363,12 @@ test.describe('public API contract', () => {
     await expect(courseResponse).toBeOK()
     const summaries = orderedLessons(await courseResponse.json() as Course)
     expect(summaries[0]).toMatchObject({ slug: 'llm-what-ai-is', order: 1 })
-    expect(summaries.map(lesson => lesson.slug)).toEqual(expect.arrayContaining(['llm-python-toolkit', 'llm-exp-log-softmax']))
+    expect(summaries.at(-1)).toMatchObject({ slug: 'llm-present-ai-end-to-end' })
+    expect(summaries.map(lesson => lesson.slug)).toEqual(expect.arrayContaining(['llm-python-toolkit', 'llm-self-attention', 'llm-build-tiny-gpt', 'llm-opencode-integration']))
+
+    const capstones = await request.get(`${apiBaseUrl}/api/experience/career/ai-llm-engineering/capstones`)
+    await expect(capstones).toBeOK()
+    await expect(capstones.json()).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'llm-specialist-in-opencode' })]))
 
     const lessonResponse = await request.get(`${apiBaseUrl}/api/lessons/llm-python-toolkit`)
     await expect(lessonResponse).toBeOK()

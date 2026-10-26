@@ -101,7 +101,9 @@ function AssessmentPanel({ course, onSelectLesson }: { course: Course; onSelectL
             ? 'react-lite-foundations'
             : course.id === 'web-development-basics'
               ? 'web-basics-checkpoint'
-              : 'foundations'
+              : course.id === 'ai-llm-engineering'
+                ? 'llm-end-to-end'
+                : 'foundations'
   const [assessment, setAssessment] = useState<Assessment | null>(null)
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [result, setResult] = useState<AssessmentResult | null>(null)
