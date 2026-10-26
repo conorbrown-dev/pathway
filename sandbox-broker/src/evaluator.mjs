@@ -785,6 +785,184 @@ fn main() {
         tests: 4,
         runtime: 'rust',
       }
+    case 'rust-net-tcp-basics':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(6));
+        eprintln!("The test timed out: something is waiting forever (a missing shutdown, timeout, or concurrent handler?).");
+        std::process::exit(1);
+    });
+    let (listener, address) = local_listener().unwrap();
+    assert!(address.ip().is_loopback(), "listen on 127.0.0.1 only, not every interface (got {address})");
+    assert_ne!(address.port(), 0, "local_listener returns the port the OS actually chose");
+    let message: Vec<u8> = (0..50_000u32).map(|i| (i % 251) as u8).collect();
+    std::thread::scope(|scope| {
+        let server = scope.spawn(|| echo_once(&listener));
+        let reply = request(address, &message).unwrap();
+        assert_eq!(reply.len(), message.len(), "every byte sent comes back, however TCP splits it");
+        assert!(reply == message, "the echoed bytes match what was sent");
+        assert_eq!(server.join().unwrap().unwrap(), 50_000, "echo_once returns how many bytes it echoed");
+    });
+    std::thread::scope(|scope| {
+        let server = scope.spawn(|| echo_once(&listener));
+        assert_eq!(request(address, b"").unwrap(), Vec::<u8>::new(), "an empty request gets an empty reply");
+        assert_eq!(server.join().unwrap().unwrap(), 0, "nothing was echoed");
+    });
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-net-framing':
+      return {
+        files: { 'main.rs': `${code}
+
+struct Trickle<R>(R);
+
+impl<R: std::io::Read> std::io::Read for Trickle<R> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        let end = buffer.len().min(1);
+        self.0.read(&mut buffer[..end])
+    }
+}
+
+fn kind<T: std::fmt::Debug>(result: std::io::Result<T>) -> std::io::ErrorKind {
+    result.expect_err("expected an error").kind()
+}
+
+fn main() {
+    use std::io::{Cursor, ErrorKind};
+    let mut wire = Vec::new();
+    write_frame(&mut wire, b"hello").unwrap();
+    write_frame(&mut wire, b"").unwrap();
+    write_frame(&mut wire, &[7u8; 300]).unwrap();
+    assert_eq!(&wire[..9], &[0, 0, 0, 5, b'h', b'e', b'l', b'l', b'o'], "a frame is a 4-byte big-endian length, then the payload");
+    assert_eq!(wire.len(), 9 + 4 + 304, "an empty frame is just its 4-byte header");
+    let mut reader = Trickle(Cursor::new(wire));
+    assert_eq!(read_frame(&mut reader, 1024).unwrap(), Some(b"hello".to_vec()), "frames are reassembled even when each read returns one byte");
+    assert_eq!(read_frame(&mut reader, 1024).unwrap(), Some(Vec::new()), "an empty frame is Some(empty), not the end");
+    assert_eq!(read_frame(&mut reader, 1024).unwrap(), Some(vec![7u8; 300]), "a longer payload is read completely");
+    assert_eq!(read_frame(&mut reader, 1024).unwrap(), None, "a clean end between frames is Ok(None)");
+    assert_eq!(kind(read_frame(&mut Cursor::new(vec![0xff, 0xff, 0xff, 0xff]), 1024)), ErrorKind::InvalidData, "a length above max_len is InvalidData");
+    let mut big = Vec::new();
+    write_frame(&mut big, &[1u8; 300]).unwrap();
+    assert_eq!(kind(read_frame(&mut Cursor::new(big), 299)), ErrorKind::InvalidData, "max_len is enforced exactly");
+    assert_eq!(kind(read_frame(&mut Trickle(Cursor::new(vec![0, 0])), 1024)), ErrorKind::UnexpectedEof, "a stream that ends inside a header is UnexpectedEof");
+    assert_eq!(kind(read_frame(&mut Trickle(Cursor::new(vec![0, 0, 0, 5, b'h', b'i'])), 1024)), ErrorKind::UnexpectedEof, "a stream that ends inside a payload is UnexpectedEof");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-net-concurrency-timeouts':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    use std::io::{Read, Write};
+    use std::time::{Duration, Instant};
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(6));
+        eprintln!("The test timed out: something is waiting forever (a missing shutdown, timeout, or concurrent handler?).");
+        std::process::exit(1);
+    });
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    std::thread::scope(|scope| {
+        let server = scope.spawn(|| serve(&listener, 3, Duration::from_millis(600)));
+        let idle = std::net::TcpStream::connect(address).unwrap();
+        let mut busy = std::net::TcpStream::connect(address).unwrap();
+        let started = Instant::now();
+        busy.write_all(b"ADD 2\\nADD 3\\nADD nine\\nQUIT\\n").unwrap();
+        let mut reply = String::new();
+        busy.read_to_string(&mut reply).unwrap();
+        let elapsed = started.elapsed();
+        assert_eq!(reply, "TOTAL 2\\nTOTAL 5\\nERR bad command\\nBYE 5\\n", "each command gets its reply, and QUIT closes the connection");
+        assert!(elapsed < Duration::from_millis(400), "a second client was served while the first sat idle (took {elapsed:?}): handle clients concurrently");
+        let mut closing = std::net::TcpStream::connect(address).unwrap();
+        closing.write_all(b"ADD 7\\n").unwrap();
+        closing.shutdown(std::net::Shutdown::Write).unwrap();
+        let mut reply = String::new();
+        closing.read_to_string(&mut reply).unwrap();
+        assert_eq!(reply, "TOTAL 7\\n", "a client that closes without QUIT still gets its replies");
+        let results = server.join().unwrap();
+        drop(idle);
+        assert_eq!(results.len(), 3, "serve returns one result per client");
+        assert_eq!(results[0].as_ref().map_err(|e| e.kind()), Err(std::io::ErrorKind::TimedOut), "an idle client times out with TimedOut");
+        assert_eq!(results[1].as_ref().ok(), Some(&5), "the busy client's total");
+        assert_eq!(results[2].as_ref().ok(), Some(&7), "the closing client's total");
+    });
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-net-tokio-kv':
+      return {
+        files: { 'main.rs': `${code}
+
+async fn send(stream: &mut tokio::net::TcpStream, line: &str) -> String {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    stream.write_all(format!("{line}\\n").as_bytes()).await.unwrap();
+    let mut reply = Vec::new();
+    loop {
+        let byte = stream.read_u8().await.unwrap();
+        if byte == b'\\n' {
+            break;
+        }
+        reply.push(byte);
+    }
+    String::from_utf8(reply).unwrap()
+}
+
+#[tokio::main]
+async fn main() {
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(6));
+        eprintln!("The test timed out: something is waiting forever (a missing shutdown, timeout, or concurrent handler?).");
+        std::process::exit(1);
+    });
+    let store: Store = Arc::new(Mutex::new(HashMap::new()));
+    assert_eq!(apply("SET greeting hello world", &store), "OK", "SET stores a value");
+    assert_eq!(apply("GET greeting", &store), "VALUE hello world", "values may contain spaces");
+    assert_eq!(apply("GET missing", &store), "NOT_FOUND", "a missing key");
+    assert_eq!(apply("COUNT", &store), "COUNT 1", "COUNT reports the number of keys");
+    assert_eq!(apply("DEL greeting", &store), "DELETED", "DEL removes a key");
+    assert_eq!(apply("DEL greeting", &store), "NOT_FOUND", "deleting twice finds nothing");
+    for bad in ["FLY away", "GET", "SET onlykey", ""] {
+        assert_eq!(apply(bad, &store), "ERR unknown command", "malformed command {bad:?}");
+    }
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    tokio::spawn(serve(listener, Arc::clone(&store)));
+    let idle = tokio::net::TcpStream::connect(address).await.unwrap();
+    let checks = async {
+        let mut writer = tokio::net::TcpStream::connect(address).await.unwrap();
+        assert_eq!(send(&mut writer, "SET lang rust").await, "OK");
+        let mut reader = tokio::net::TcpStream::connect(address).await.unwrap();
+        assert_eq!(send(&mut reader, "GET lang").await, "VALUE rust", "every connection shares one store");
+        assert_eq!(send(&mut reader, "COUNT").await, "COUNT 1");
+        assert_eq!(send(&mut writer, "NOPE").await, "ERR unknown command");
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(2), checks).await.expect("clients were served while another connection sat idle: spawn a task per connection");
+    drop(idle);
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        // pathway-rustc links the image's prebuilt Tokio (with the net feature).
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
     case 'rust-structs-enums':
       return {
         files: { 'main.rs': `${code}

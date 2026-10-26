@@ -34,6 +34,29 @@ async fn run() -> anyhow::Result<()> {
     if value != Some(42) {
         return Err(ProbeError(String::from("channel")).into());
     }
+    loopback_round_trip().await
+}
+
+// Networking exercises talk to themselves over 127.0.0.1; prove loopback works with no network.
+async fn loopback_round_trip() -> anyhow::Result<()> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await?;
+        let mut buffer = [0u8; 4];
+        stream.read_exact(&mut buffer).await?;
+        stream.write_all(&buffer).await?;
+        anyhow::Ok(())
+    });
+    let mut client = tokio::net::TcpStream::connect(address).await?;
+    client.write_all(b"ping").await?;
+    let mut reply = [0u8; 4];
+    client.read_exact(&mut reply).await?;
+    server.await??;
+    if &reply != b"ping" {
+        return Err(ProbeError(String::from("loopback echo")).into());
+    }
     Ok(())
 }
 

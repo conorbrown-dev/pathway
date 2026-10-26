@@ -29,6 +29,10 @@ static partial class Curriculum
         "rust-processes-signals" => RustProcessesSignals(lesson),
         "rust-serde-formats" => RustSerdeFormats(lesson),
         "rust-cli-project" => RustCliProject(lesson),
+        "rust-net-tcp-basics" => RustNetTcpBasics(lesson),
+        "rust-net-framing" => RustNetFraming(lesson),
+        "rust-net-concurrency-timeouts" => RustNetConcurrencyTimeouts(lesson),
+        "rust-net-tokio-kv" => RustNetTokioKv(lesson),
         "rust-concurrency-send-sync" => RustConcurrencySendSync(lesson),
         "rust-async-tokio" => RustAsyncTokio(lesson),
         _ => lesson
