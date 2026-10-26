@@ -2147,9 +2147,12 @@ async fn main() {
     });
     tokio::time::sleep(std::time::Duration::from_millis(80)).await;
     stop.send(()).unwrap();
+    let signalled = std::time::Instant::now();
+    tokio::time::timeout(std::time::Duration::from_secs(3), server).await.expect("serve_until returns once in-flight requests finish").unwrap().unwrap();
+    let waited = signalled.elapsed();
+    assert!(waited >= std::time::Duration::from_millis(150), "serve_until returned {waited:?} after the signal, before the in-flight request finished: wait for it, or the process exits and cuts it off");
     let reply = client.await.unwrap();
     assert!(reply.starts_with("HTTP/1.1 200") && reply.ends_with("done"), "a request already in progress at shutdown still completes: got {reply:?}");
-    tokio::time::timeout(std::time::Duration::from_secs(3), server).await.expect("serve_until returns once in-flight requests finish").unwrap().unwrap();
     assert!(health.draining.load(Ordering::SeqCst), "shutdown marks the service as draining");
     assert_eq!(call(&app(health.clone()), "GET", "/readyz", &[], "").await.0, 503, "a draining service reports not ready, so load balancers stop sending traffic");
     println!("PATHWAY_TEST_PASS");

@@ -522,7 +522,7 @@ static partial class Curriculum
                 .await
             ```
 
-            When the future passed to `with_graceful_shutdown` completes, the server stops accepting connections and waits for active ones to finish. Compare racing the server against the signal with `select!`: that drops the server future, cutting off every request in progress. (In practice also wait a few seconds after marking unready before stopping the listener, because load balancers notice readiness changes with a delay.)
+            When the future passed to `with_graceful_shutdown` completes, the server stops accepting connections and `.await` returns only after active connections finish. Compare racing the server against the signal with `select!`: it returns immediately, `main` carries on to exit, and the runtime shutting down cuts off every request still in progress. (In practice also wait a few seconds after marking unready before stopping the listener, because load balancers notice readiness changes with a delay.)
 
             ## The container image
             A Rust service compiles to a single binary, which makes for small, simple container images. A **multi-stage** Dockerfile builds in one image and copies only the binary into a minimal runtime image:

@@ -64,7 +64,8 @@ fn app(health: Arc<Health>) -> Router {
 }
 
 async fn serve_until(listener: tokio::net::TcpListener, app: Router, health: Arc<Health>, shutdown: tokio::sync::oneshot::Receiver<()>) -> std::io::Result<()> {
-    // Stops at once on the signal, cutting off requests that are still running.
+    // Returns as soon as the signal arrives, without waiting for in-flight requests;
+    // main then exits and the runtime cuts them off.
     tokio::select! {
         result = axum::serve(listener, app) => result,
         _ = shutdown => {
