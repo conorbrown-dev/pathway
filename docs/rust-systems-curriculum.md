@@ -43,8 +43,28 @@ No single course certifies expertise. Repeated real systems work, code reviews, 
 
 Use the maintained [Rust Book](https://doc.rust-lang.org/stable/book/), [Rust Reference](https://doc.rust-lang.org/reference/), [Cargo Book](https://doc.rust-lang.org/cargo/), [Rustonomicon](https://doc.rust-lang.org/nomicon/), [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/), [Rust Performance Book](https://nnethercote.github.io/perf-book/), and [Miri](https://github.com/rust-lang/miri). Use Tokio and Axum documentation only where their features are taught. Treat version numbers as review stamps rather than assuming they remain current; the prior embedded stamp is Rust 1.97 / Edition 2024, reviewed 2026-08-18.
 
+## Course structure (October 2026)
+
+The systems path runs from installation to a capstone with a graded exercise in every lesson. Each code exercise has a fixture in `sandbox-broker/src/evaluator.mjs` and pass/fail reference solutions in `sandbox-broker/test/rust-solutions`, run by CI both with rustc and inside the sandbox image.
+
+1. **Rust foundations / Project workflow:** setup; functions and formatting; number types and overflow; control flow and pattern matching; strings, UTF-8 and collections; Option/Result; errors; compiler errors, debugging and tests; modules and visibility; Cargo profiles, features and quality tools. Checkpoint: `rust-foundations` (12 questions).
+2. **Memory-safe Rust:** stack, heap and layout (before ownership on purpose); ownership and Drop; borrowing; lifetimes; structs and enums; traits and generics; iterators and closures; smart pointers; macros.
+3. **Working with the operating system:** arguments, environment and exit codes; stdio and buffering; files and system calls; processes and signals; serde; project: `minigrep`.
+4. **Concurrency and systems:** threads, Send and Sync; async with Tokio; structured concurrency.
+5. **Low-level foundations:** bits and byte order; slices and zero-copy buffers; raw pointers; unsafe, FFI and Miri; binary parser; atomics and locks; measuring performance and allocation.
+6. **Networking from sockets up:** TCP with `std::net`; framing; concurrent servers with timeouts; project: Tokio key-value server.
+7. **Systems practice:** property testing and fuzzing; targets, `no_std`, embedded and WebAssembly; **capstone: a crash-safe log-structured store.**
+
+The service-delivery, quality/operations and staff modules that follow form the backend track and are still templated.
+
+Grading conventions worth keeping:
+- Network fixtures bind to 127.0.0.1 and start a watchdog thread so a hanging submission fails fast.
+- Fixtures that need crates (Tokio, serde) compile with `pathway-rustc`; the image smoke test proves loopback networking works with no network.
+- The raw-pointer and FFI graders require a `// SAFETY:` comment per `unsafe` block; the `no_std` grader compiles the submission as a `#![no_std]` library first.
+
 ### Known follow-up items
 
-1. Existing Rust lessons outside the expanded labs still have short concept text and immediate multiple-choice checks; upgrade systematically and move graded assessments to module ends.
-2. Add automated checks for unique slugs, contiguous ordering, valid next-slug links, lesson coverage and compilable example snippets.
-3. Develop deeper optional tracks for Linux interfaces, networking sockets, embedded/no_std, unsafe audit, C ABI interoperability, and compiler/toolchain fundamentals.
+1. Service delivery, quality/operations and staff lessons are still templated one-liners with multiple-choice checks.
+2. The frontend shows one checkpoint per course; module-end checkpoints for memory safety, OS, low-level and networking need the assessment UI (audit H1).
+3. Production sandboxes use Vercel's `deny-all` policy; confirm loopback works there with one real submission to a networking lesson after deploy.
+4. Optional deeper tracks: Linux interfaces (epoll, mmap), compiler/toolchain fundamentals, embedded hardware labs.

@@ -42,6 +42,9 @@ static partial class Curriculum
         "rust-atomics-locks" => RustAtomicsLocks(lesson),
         "rust-macros" => RustMacros(lesson),
         "rust-structured-concurrency" => RustStructuredConcurrency(lesson),
+        "rust-testing-properties" => RustTestingProperties(lesson),
+        "rust-systems-wasm-embedded" => RustSystemsTargets(lesson),
+        "rust-systems-capstone" => RustSystemsCapstone(lesson),
         "rust-concurrency-send-sync" => RustConcurrencySendSync(lesson),
         "rust-async-tokio" => RustAsyncTokio(lesson),
         _ => lesson

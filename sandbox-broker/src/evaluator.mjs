@@ -1328,6 +1328,165 @@ async fn main() {
         tests: 3,
         runtime: 'rust',
       }
+    case 'rust-testing-properties':
+      return {
+        files: { 'main.rs': `${code}
+
+struct Generator(u64);
+
+impl Generator {
+    fn next(&mut self) -> u64 {
+        self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+        self.0 >> 33
+    }
+
+    fn bytes(&mut self) -> Vec<u8> {
+        let length = (self.next() % 700) as usize;
+        let alphabet = 1 + self.next() % 4;
+        (0..length).map(|_| if self.next() % 8 == 0 { 0 } else { (self.next() % alphabet) as u8 + b'a' }).collect()
+    }
+}
+
+fn main() {
+    assert_eq!(encode(b""), Vec::<u8>::new(), "nothing encodes to nothing");
+    assert_eq!(encode(b"aaab"), vec![3, b'a', 1, b'b'], "runs become (count, byte) pairs");
+    assert_eq!(encode(&[7u8; 300]), vec![255, 7, 45, 7], "a run longer than 255 is split, never wrapped to a count of 0");
+    assert_eq!(decode(&[2, b'x', 1, b'y']), Ok(b"xxy".to_vec()), "decode expands pairs");
+    assert_eq!(decode(&[2, b'x', 1]), Err(DecodeError::OddLength), "an odd number of bytes is OddLength");
+    assert_eq!(decode(&[0, b'x']), Err(DecodeError::ZeroCount), "a count of zero is ZeroCount");
+    let mut generator = Generator(42);
+    for case in 0..2_000 {
+        let data = generator.bytes();
+        let encoded = encode(&data);
+        assert_eq!(decode(&encoded).as_deref(), Ok(&data[..]), "property: decode(encode(x)) == x failed on case {case} with {} bytes", data.len());
+        assert!(encoded.len() <= data.len() * 2, "property: encoding at most doubles the size (case {case})");
+        assert!(encoded.chunks(2).all(|pair| pair[0] > 0), "property: no pair has a count of zero (case {case})");
+        assert!(encoded.windows(4).step_by(2).all(|w| w[1] != w[3] || w[0] == 255), "property: neighbouring pairs for the same byte only when the first is full (case {case})");
+    }
+    std::panic::set_hook(Box::new(|_| {}));
+    for case in 0..2_000 {
+        let junk: Vec<u8> = (0..generator.next() % 40).map(|_| generator.next() as u8).collect();
+        assert!(std::panic::catch_unwind(|| decode(&junk)).is_ok(), "property: decode never panics (case {case}, input {junk:?})");
+    }
+    let _ = std::panic::take_hook();
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-systems-wasm-embedded':
+      return {
+        files: {
+          'submission.rs': code,
+          'main.rs': `${code}
+
+fn main() {
+    let mut readings: RingBuffer<4> = RingBuffer::new();
+    assert_eq!((readings.len(), readings.average()), (0, None), "a new buffer is empty");
+    assert_eq!(readings.push(10), None, "pushing into free space evicts nothing");
+    assert_eq!(readings.push(20), None, "second reading");
+    assert_eq!(readings.average(), Some(15), "average of the readings held");
+    readings.push(30);
+    readings.push(40);
+    assert_eq!(readings.len(), 4, "the buffer is full");
+    assert_eq!(readings.push(50), Some(10), "a full buffer evicts its oldest reading");
+    assert_eq!(readings.push(60), Some(20), "and then the next oldest");
+    assert_eq!((readings.len(), readings.average()), (4, Some(45)), "the four newest readings remain: 30, 40, 50, 60");
+    let mut high: RingBuffer<4> = RingBuffer::new();
+    for _ in 0..4 {
+        high.push(60_000);
+    }
+    assert_eq!(high.average(), Some(60_000), "the average must not overflow while summing");
+    const STARTUP: RingBuffer<8> = RingBuffer::new();
+    assert_eq!(STARTUP.len(), 0, "new() is a const fn, usable in a const or static");
+    assert_eq!(fletcher16(b""), 0, "Fletcher-16 of nothing");
+    assert_eq!(fletcher16(b"abcde"), 0xC8F0, "Fletcher-16 of abcde");
+    assert_eq!(fletcher16(b"abcdef"), 0x2057, "Fletcher-16 of abcdef");
+    assert_eq!(fletcher16(b"abcdefgh"), 0x0627, "Fletcher-16 of abcdefgh");
+    assert_eq!(fletcher16(&[0xff; 2_000]), fletcher16(&[0xff; 2_000]), "long inputs don't overflow");
+    println!("PATHWAY_TEST_PASS");
+}
+`,
+        },
+        // First compile the submission alone as a #![no_std] library: it must need only `core`.
+        command: ['/bin/sh', '-c', 'cd /workspace && { printf "#![no_std]\\n"; cat submission.rs; } > nostd.rs && if ! rustc --edition=2024 --crate-type lib nostd.rs -o libnostd.rlib 2> nostd.err; then echo "Your code must compile without the standard library (#![no_std]): use only core, with no Vec, String, Box or std:: paths."; head -n 20 nostd.err; exit 1; fi && rustc --edition=2024 main.rs -o main && ./main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-systems-capstone':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    use std::path::Path;
+    let dir = Path::new("pathway-store");
+    let _ = std::fs::remove_dir_all(dir);
+    std::fs::create_dir_all(dir).unwrap();
+
+    let format = dir.join("format.log");
+    let mut store = Store::open(&format).unwrap();
+    store.set("k", "v").unwrap();
+    drop(store);
+    assert_eq!(std::fs::read(&format).unwrap(), vec![1, 0, 0, 0, 1, 0, 0, 0, 1, b'k', b'v'], "a SET record is op 1, key length and value length as big-endian u32, then key and value");
+
+    let log = dir.join("data.log");
+    let mut store = Store::open(&log).unwrap();
+    assert_eq!(store.len(), 0, "a new store is empty");
+    store.set("a", "1").unwrap();
+    store.set("b", "2").unwrap();
+    store.set("a", "3").unwrap();
+    assert_eq!(store.delete("b").unwrap(), true, "deleting an existing key returns true");
+    assert_eq!(store.delete("missing").unwrap(), false, "deleting a missing key returns false");
+    assert_eq!((store.get("a"), store.get("b"), store.len()), (Some("3"), None, 1), "the latest value wins and deleted keys are gone");
+    drop(store);
+
+    let store = Store::open(&log).unwrap();
+    assert_eq!((store.get("a"), store.get("b"), store.len()), (Some("3"), None, 1), "reopening replays the log to the same state");
+    drop(store);
+
+    let mut torn = std::fs::read(&log).unwrap();
+    let valid_length = torn.len();
+    torn.extend_from_slice(&[1, 0, 0, 0, 9, 0]);
+    std::fs::write(&log, &torn).unwrap();
+    let mut store = Store::open(&log).expect("a record cut off by a crash is ignored, not treated as corruption");
+    assert_eq!((store.get("a"), store.len()), (Some("3"), 1), "the torn record is ignored");
+    store.set("c", "4").unwrap();
+    drop(store);
+    let store = Store::open(&log).unwrap();
+    assert_eq!(store.get("c"), Some("4"), "records written after recovering from a crash are readable: cut the torn tail off first");
+    assert!(std::fs::metadata(&log).unwrap().len() as usize > valid_length, "the new record was appended");
+    drop(store);
+
+    let mut store = Store::open(&log).unwrap();
+    for round in 0..50 {
+        store.set("counter", &round.to_string()).unwrap();
+    }
+    let before = std::fs::metadata(&log).unwrap().len();
+    store.compact().unwrap();
+    let after = std::fs::metadata(&log).unwrap().len();
+    assert!(after < before, "compaction rewrites only live keys ({before} -> {after} bytes)");
+    store.set("d", "5").unwrap();
+    drop(store);
+    let names: Vec<String> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).filter(|n| n.starts_with("data")).collect();
+    assert_eq!(names, ["data.log"], "compaction leaves no temporary file behind");
+    let store = Store::open(&log).unwrap();
+    assert_eq!((store.get("a"), store.get("c"), store.get("counter"), store.get("d"), store.len()), (Some("3"), Some("4"), Some("49"), Some("5"), 4), "after compaction and another write, every live key survives a reopen");
+    drop(store);
+
+    let corrupt = dir.join("corrupt.log");
+    std::fs::write(&corrupt, [9, 0, 0, 0, 1, 0, 0, 0, 1, b'k', b'v']).unwrap();
+    let error = Store::open(&corrupt).err().expect("an unknown record type is corruption, not a crash tail");
+    assert_eq!(error.kind(), std::io::ErrorKind::InvalidData, "corruption is reported as InvalidData");
+    std::fs::remove_dir_all(dir).unwrap();
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'cd /workspace && rustc --edition=2024 main.rs -o main && ./main'],
+        tests: 5,
+        runtime: 'rust',
+      }
     case 'rust-structs-enums':
       return {
         files: { 'main.rs': `${code}
