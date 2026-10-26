@@ -567,6 +567,224 @@ fn main() {
         tests: 3,
         runtime: 'rust',
       }
+    case 'rust-cli-args-env':
+      return {
+        files: { 'main.rs': `${code}
+
+fn args(items: &[&str]) -> Vec<String> {
+    items.iter().map(|item| item.to_string()).collect()
+}
+
+fn config(pattern: &str, paths: &[&str], ignore_case: bool, max_count: Option<usize>) -> Config {
+    Config { pattern: pattern.to_string(), paths: args(paths), ignore_case, max_count }
+}
+
+fn main() {
+    assert_eq!(parse_args(&args(&["todo", "a.txt", "b.txt"])), Ok(config("todo", &["a.txt", "b.txt"], false, None)), "the first plain argument is the pattern, the rest are paths");
+    assert_eq!(parse_args(&args(&["-i", "todo"])), Ok(config("todo", &[], true, None)), "-i turns on ignore_case");
+    assert_eq!(parse_args(&args(&["todo", "--ignore-case", "notes.md"])), Ok(config("todo", &["notes.md"], true, None)), "options may come after the pattern");
+    assert_eq!(parse_args(&args(&["-m", "3", "fix"])), Ok(config("fix", &[], false, Some(3))), "-m takes the next argument as a number");
+    assert_eq!(parse_args(&args(&["--max-count", "10", "fix", "x.rs"])), Ok(config("fix", &["x.rs"], false, Some(10))), "--max-count is the long form");
+    assert_eq!(parse_args(&args(&["--", "-i", "file"])), Ok(config("-i", &["file"], false, None)), "after -- everything is a plain argument");
+    assert_eq!(parse_args(&args(&["needle", "-"])), Ok(config("needle", &["-"], false, None)), "a lone - is a plain argument (standard input)");
+    assert_eq!(parse_args(&args(&[])), Err(String::from("missing pattern")), "no arguments is an error");
+    assert_eq!(parse_args(&args(&["-i"])), Err(String::from("missing pattern")), "options alone are not enough");
+    assert_eq!(parse_args(&args(&["fix", "-m"])), Err(String::from("missing value for -m")), "-m needs a value");
+    assert_eq!(parse_args(&args(&["-m", "lots", "fix"])), Err(String::from("invalid number for -m: lots")), "-m needs a number");
+    assert_eq!(parse_args(&args(&["-z", "fix"])), Err(String::from("unknown option: -z")), "unknown options are reported");
+    assert!(color_enabled(None, Some("xterm-256color")), "color is on by default");
+    assert!(!color_enabled(Some("1"), Some("xterm")), "NO_COLOR turns color off");
+    assert!(color_enabled(Some(""), Some("xterm")), "an empty NO_COLOR does not count");
+    assert!(!color_enabled(None, Some("dumb")), "TERM=dumb turns color off");
+    assert!(color_enabled(None, None), "no TERM at all still allows color");
+    assert_eq!(exit_code(&Ok(3)), 0, "matches found means success");
+    assert_eq!(exit_code(&Ok(0)), 1, "no matches is exit code 1");
+    assert_eq!(exit_code(&Err(String::from("bad"))), 2, "an error is exit code 2");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-stdio-buffering':
+      return {
+        files: { 'main.rs': `${code}
+
+struct ClosedPipe;
+
+impl std::io::Write for ClosedPipe {
+    fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+        Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "reader went away"))
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn main() {
+    use std::io::Cursor;
+    assert_eq!(count(Cursor::new("")).unwrap(), (0, 0, 0), "empty input");
+    assert_eq!(count(Cursor::new("one two\\nthree\\n")).unwrap(), (2, 3, 14), "lines, words and bytes including newlines");
+    assert_eq!(count(Cursor::new("no newline at end")).unwrap(), (1, 4, 17), "a last line without a newline still counts");
+    assert_eq!(count(Cursor::new("héllo wörld\\n")).unwrap(), (1, 2, 14), "bytes, not characters");
+    assert_eq!(count(Cursor::new("\\n\\n")).unwrap(), (2, 0, 2), "blank lines count as lines");
+    let invalid = count(Cursor::new(vec![b'o', b'k', b'\\n', 0xff, 0xfe, b'\\n']));
+    assert_eq!(invalid.map_err(|e| e.kind()), Err(std::io::ErrorKind::InvalidData), "invalid UTF-8 is returned as an error, not a panic");
+    let mut out = Vec::new();
+    number_lines(Cursor::new("alpha\\nbeta\\n"), &mut out).unwrap();
+    assert_eq!(String::from_utf8(out).unwrap(), "   1  alpha\\n   2  beta\\n", "number_lines right-aligns numbers to width 4 and adds two spaces");
+    let mut out = Vec::new();
+    number_lines(Cursor::new(""), &mut out).unwrap();
+    assert!(out.is_empty(), "no input, no output");
+    let result = number_lines(Cursor::new("alpha\\n"), ClosedPipe);
+    assert_eq!(result.map_err(|e| e.kind()), Err(std::io::ErrorKind::BrokenPipe), "a failed write is returned to the caller");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-os-files-syscalls':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    use std::path::Path;
+    let dir = Path::new("pathway-files");
+    let _ = std::fs::remove_dir_all(dir);
+    std::fs::create_dir_all(dir).unwrap();
+    let log = dir.join("events.log");
+    append_line(&log, "started").unwrap();
+    append_line(&log, "working").unwrap();
+    append_line(&log, "stopped").unwrap();
+    assert_eq!(std::fs::read_to_string(&log).unwrap(), "started\\nworking\\nstopped\\n", "append_line creates the file and adds one line per call");
+    assert_eq!(tail(&log, 2).unwrap(), ["working", "stopped"], "tail returns the last n lines in order");
+    assert_eq!(tail(&log, 10).unwrap(), ["started", "working", "stopped"], "asking for more lines than exist returns them all");
+    assert_eq!(tail(&log, 0).unwrap(), Vec::<String>::new(), "tail of zero lines is empty");
+    let missing = tail(&dir.join("missing.log"), 3);
+    assert_eq!(missing.map_err(|e| e.kind()), Err(std::io::ErrorKind::NotFound), "a missing file is reported as NotFound, not hidden");
+    let settings = dir.join("settings.json");
+    write_atomically(&settings, "{\\"version\\": 1}").unwrap();
+    write_atomically(&settings, "{\\"version\\": 2}").unwrap();
+    assert_eq!(std::fs::read_to_string(&settings).unwrap(), "{\\"version\\": 2}", "write_atomically replaces the contents");
+    let names: Vec<String> = std::fs::read_dir(dir).unwrap().map(|entry| entry.unwrap().file_name().into_string().unwrap()).filter(|name| name.starts_with("settings")).collect();
+    assert_eq!(names, ["settings.json"], "no temporary file is left behind");
+    std::fs::remove_dir_all(dir).unwrap();
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'cd /workspace && rustc --edition=2024 main.rs -o main && ./main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-processes-signals':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    assert_eq!(run_capture("sh", &["-c", "echo hello; exit 3"]).unwrap(), (3, String::from("hello\\n")), "run_capture returns the exit code and standard output");
+    assert_eq!(run_capture("true", &[]).unwrap(), (0, String::new()), "a successful program exits with 0");
+    assert_eq!(run_capture("sh", &["-c", "kill -9 $$"]).unwrap().0, -1, "a program killed by a signal has no exit code: report -1");
+    let missing = run_capture("pathway-no-such-program", &[]);
+    assert_eq!(missing.map_err(|e| e.kind()), Err(std::io::ErrorKind::NotFound), "a missing program is an error, not a panic");
+    assert_eq!(sort_lines("pear\\napple\\nBanana\\n").unwrap(), "Banana\\napple\\npear\\n", "sort_lines pipes through sort in byte order");
+    assert_eq!(sort_lines("").unwrap(), "", "sorting nothing returns nothing");
+    let big: String = (0..20_000).rev().map(|n| format!("{n:05}\\n")).collect();
+    let sorted = sort_lines(&big).unwrap();
+    assert!(sorted.starts_with("00000\\n00001\\n") && sorted.ends_with("19999\\n"), "large input is sorted without deadlocking");
+    let dir = std::path::Path::new("pathway-proc");
+    let _ = std::fs::remove_dir_all(dir);
+    std::fs::create_dir_all(dir).unwrap();
+    let spaced = dir.join("my notes.txt");
+    std::fs::write(&spaced, "twelve bytes").unwrap();
+    assert_eq!(file_size(spaced.to_str().unwrap()).unwrap(), "12", "file names with spaces are passed as one argument");
+    let _ = std::fs::remove_file("injected");
+    let tricky = dir.join("$(touch injected).txt");
+    std::fs::write(&tricky, "abc").unwrap();
+    assert_eq!(file_size(tricky.to_str().unwrap()).unwrap(), "3", "a file name is data, never a command");
+    assert!(!std::path::Path::new("injected").exists(), "the file name ran as a shell command: pass arguments without a shell");
+    assert!(file_size("pathway-proc/missing.txt").is_err(), "a missing file is an error");
+    std::fs::remove_dir_all(dir).unwrap();
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'cd /workspace && rustc --edition=2024 main.rs -o main && ./main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-serde-formats':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    let full = parse_config(r#"{"name": "learner-api", "port": 9000, "tags": ["edge", "beta"], "logLevel": "debug"}"#).unwrap();
+    assert_eq!(full, ServiceConfig { name: String::from("learner-api"), port: 9000, tags: vec![String::from("edge"), String::from("beta")], log_level: String::from("debug") }, "every field is read, with logLevel mapped to log_level");
+    let minimal = parse_config(r#"{"name": "worker"}"#).unwrap();
+    assert_eq!(minimal, ServiceConfig { name: String::from("worker"), port: 8080, tags: vec![], log_level: String::from("info") }, "missing fields use their defaults");
+    let typo = parse_config(r#"{"name": "api", "prot": 9000}"#);
+    assert!(typo.as_ref().is_err_and(|message| message.contains("unknown field")), "an unknown field such as a typo is rejected, got {typo:?}");
+    let missing = parse_config(r#"{"port": 1}"#);
+    assert!(missing.as_ref().is_err_and(|message| message.contains("missing field")), "name is required, got {missing:?}");
+    let wrong_type = parse_config(r#"{"name": "api", "port": "eighty"}"#);
+    assert!(wrong_type.is_err(), "a port must be a number");
+    let too_big = parse_config(r#"{"name": "api", "port": 70000}"#);
+    assert!(too_big.is_err(), "a port above 65535 does not fit in a u16");
+    let text = to_pretty(&full);
+    assert!(text.contains("\\n  \\"logLevel\\": \\"debug\\""), "to_pretty writes indented JSON using the logLevel key, got {text}");
+    assert_eq!(parse_config(&text).unwrap(), full, "pretty output parses back to the same config");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        // pathway-rustc links the image's prebuilt serde and serde_json (see images/rust/Dockerfile).
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-cli-project':
+      return {
+        files: { 'main.rs': `${code}
+
+fn grep(args: &[&str], input: &str) -> (i32, String, String) {
+    let args: Vec<String> = args.iter().map(|arg| arg.to_string()).collect();
+    let mut stdin = std::io::Cursor::new(input.as_bytes().to_vec());
+    let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
+    let code = run(&args, &mut stdin, &mut stdout, &mut stderr);
+    (code, String::from_utf8(stdout).unwrap(), String::from_utf8(stderr).unwrap())
+}
+
+fn main() {
+    let dir = std::path::Path::new("pathway-grep");
+    let _ = std::fs::remove_dir_all(dir);
+    std::fs::create_dir_all(dir).unwrap();
+    std::fs::write(dir.join("a.txt"), "TODO: write tests\\ndone\\ntodo later\\n").unwrap();
+    std::fs::write(dir.join("b.txt"), "nothing here\\nanother TODO\\n").unwrap();
+    let (a, b, missing) = ("pathway-grep/a.txt", "pathway-grep/b.txt", "pathway-grep/missing.txt");
+
+    assert_eq!(grep(&["TODO"], "one TODO\\ntwo\\nTODO three\\n"), (0, String::from("one TODO\\nTODO three\\n"), String::new()), "with no files, read standard input and print matching lines");
+    assert_eq!(grep(&["absent"], "one\\ntwo\\n"), (1, String::new(), String::new()), "no matches exits with 1 and prints nothing");
+    assert_eq!(grep(&["-i", "todo", a], "").1, "TODO: write tests\\ntodo later\\n", "-i ignores case; one file means no file-name prefix");
+    assert_eq!(grep(&["-n", "TODO", a], "").1, "1:TODO: write tests\\n", "-n prefixes line numbers");
+    assert_eq!(grep(&["TODO", a, b], "").1, "pathway-grep/a.txt:TODO: write tests\\npathway-grep/b.txt:another TODO\\n", "several files prefix each line with its file name");
+    assert_eq!(grep(&["-c", "-i", "todo", a], ""), (0, String::from("2\\n"), String::new()), "-c prints only the count");
+    assert_eq!(grep(&["-c", "TODO", a, b], "").1, "pathway-grep/a.txt:1\\npathway-grep/b.txt:1\\n", "-c with several files counts each one");
+    let (code, out, err) = grep(&["TODO", missing, b], "");
+    assert_eq!(code, 2, "an unreadable file makes the exit code 2");
+    assert_eq!(out, "pathway-grep/b.txt:another TODO\\n", "the remaining files are still searched after an error");
+    assert!(err.starts_with("minigrep: pathway-grep/missing.txt: "), "errors go to stderr, prefixed with the program and file name, got {err:?}");
+    let (code, out, err) = grep(&[], "");
+    assert_eq!((code, out.as_str()), (2, ""), "a missing pattern exits with 2");
+    assert!(err.contains("usage: minigrep"), "a usage error prints the usage line to stderr, got {err:?}");
+    assert_eq!(grep(&["-x", "a"], "").0, 2, "unknown options are usage errors");
+    std::fs::remove_dir_all(dir).unwrap();
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'cd /workspace && rustc --edition=2024 main.rs -o main && ./main'],
+        tests: 4,
+        runtime: 'rust',
+      }
     case 'rust-structs-enums':
       return {
         files: { 'main.rs': `${code}
