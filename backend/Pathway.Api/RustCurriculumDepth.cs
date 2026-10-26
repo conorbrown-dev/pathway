@@ -50,6 +50,11 @@ static partial class Curriculum
         "rust-extractors-errors" => RustExtractorsErrors(lesson),
         "rust-database-transactions" => RustDatabaseTransactions(lesson),
         "rust-auth-security" => RustAuthSecurity(lesson),
+        "rust-testing-integration" => RustTestingIntegration(lesson),
+        "rust-observability" => RustObservability(lesson),
+        "rust-performance-profiling" => RustPerformanceProfiling(lesson),
+        "rust-resilience-queues" => RustResilienceQueues(lesson),
+        "rust-containers-delivery" => RustContainersDelivery(lesson),
         "rust-concurrency-send-sync" => RustConcurrencySendSync(lesson),
         "rust-async-tokio" => RustAsyncTokio(lesson),
         _ => lesson
