@@ -963,6 +963,177 @@ async fn main() {
         tests: 3,
         runtime: 'rust',
       }
+    case 'rust-bytes-endianness':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    assert_eq!(read_u32_le(&[1, 0, 0, 0]), Some(1), "little-endian: the first byte is the least significant");
+    assert_eq!(read_u32_le(&[0x78, 0x56, 0x34, 0x12, 0xff]), Some(0x1234_5678), "only the first four bytes are read");
+    assert_eq!(read_u32_le(&[0xff, 0xff, 0xff, 0xff]), Some(u32::MAX), "all ones");
+    assert_eq!(read_u32_le(&[1, 2, 3]), None, "fewer than four bytes is None, not a panic");
+    assert_eq!(set_bit(0b0000_0000, 3, true), 0b0000_1000, "set bit 3");
+    assert_eq!(set_bit(0b1111_1111, 0, false), 0b1111_1110, "clear bit 0");
+    assert_eq!(set_bit(0b0000_0100, 1, false), 0b0000_0100, "clearing a bit that is already clear changes nothing");
+    assert_eq!(set_bit(0b1000_0000, 7, true), 0b1000_0000, "setting a bit that is already set changes nothing");
+    assert_eq!(set_bit(0b0101_0101, 8, true), 0b0101_0101, "bit 8 doesn't exist in a u8: unchanged, no panic");
+    assert_eq!(set_bit(0b0101_0101, 200, false), 0b0101_0101, "huge bit numbers are ignored too");
+    assert_eq!(pack_rgb565(255, 255, 255), 0xffff, "white");
+    assert_eq!(pack_rgb565(255, 0, 0), 0xf800, "red occupies the top 5 bits");
+    assert_eq!(pack_rgb565(0, 255, 0), 0x07e0, "green occupies the middle 6 bits");
+    assert_eq!(pack_rgb565(0, 0, 255), 0x001f, "blue occupies the low 5 bits");
+    assert_eq!(pack_rgb565(0x12, 0x34, 0x56), 0x11aa, "low bits of each channel are dropped");
+    assert_eq!(unpack_rgb565(0xf800), (0xf8, 0, 0), "unpack red");
+    assert_eq!(unpack_rgb565(0x07e0), (0, 0xfc, 0), "unpack green");
+    assert_eq!(unpack_rgb565(pack_rgb565(200, 100, 50)), (200 & 0xf8, 100 & 0xfc, 50 & 0xf8), "a round trip keeps the high bits of each channel");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-slices-buffers':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    let packet = [1u8, 2, 3, 4, 5, 6];
+    let (header, body) = split_header(&packet, 2).unwrap();
+    assert_eq!((header, body), (&[1u8, 2][..], &[3u8, 4, 5, 6][..]), "split_header splits at header_len");
+    assert!(header.as_ptr() == packet.as_ptr() && body.as_ptr() == packet[2..].as_ptr(), "split_header borrows the packet instead of copying it");
+    assert_eq!(split_header(&packet, 6).map(|(h, b)| (h.len(), b.len())), Some((6, 0)), "a header can fill the whole packet");
+    assert_eq!(split_header(&packet, 7), None, "a header longer than the packet is None, not a panic");
+    assert_eq!(read_at(&packet, 1, 3), Some(&[2u8, 3, 4][..]), "read_at returns len bytes from offset");
+    assert_eq!(read_at(&packet, 6, 0), Some(&[][..]), "an empty read at the end is fine");
+    assert_eq!(read_at(&packet, 4, 3), None, "reading past the end is None");
+    assert_eq!(read_at(&packet, 2, usize::MAX), None, "offset + len overflowing usize is None, not a wrap-around or panic");
+    assert_eq!(read_at(&packet, usize::MAX, 2), None, "a huge offset is None");
+    assert_eq!(find_subslice(b"GET /index HTTP/1.1", b"HTTP"), Some(11), "find_subslice returns the first match position");
+    assert_eq!(find_subslice(b"abcabc", b"bc"), Some(1), "the first of several matches");
+    assert_eq!(find_subslice(b"abc", b"abcd"), None, "a needle longer than the haystack is not found");
+    assert_eq!(find_subslice(b"abc", b""), Some(0), "an empty needle matches at 0");
+    assert_eq!(chunk_sums(&[1, 2, 3, 4, 5], 2), vec![3, 7, 5], "chunk_sums adds each chunk; the last may be short");
+    assert_eq!(chunk_sums(&[255, 255, 255], 3), vec![765], "sums don't overflow a u8");
+    assert_eq!(chunk_sums(&[1, 2], 0), Vec::<u32>::new(), "a chunk size of 0 gives no chunks instead of panicking");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-binary-parser':
+      return {
+        files: { 'main.rs': `${code}
+
+fn file(version: u8, records: &[(u32, &[u8])]) -> Vec<u8> {
+    let mut bytes = b"PWAY".to_vec();
+    bytes.push(version);
+    bytes.extend_from_slice(&(records.len() as u16).to_be_bytes());
+    for (id, name) in records {
+        bytes.extend_from_slice(&id.to_be_bytes());
+        bytes.push(name.len() as u8);
+        bytes.extend_from_slice(name);
+    }
+    bytes
+}
+
+fn main() {
+    let valid = file(1, &[(7, b"ada"), (0x0102_0304, "émile".as_bytes()), (9, b"")]);
+    assert_eq!(parse(&valid), Ok(vec![
+        Record { id: 7, name: String::from("ada") },
+        Record { id: 0x0102_0304, name: String::from("émile") },
+        Record { id: 9, name: String::new() },
+    ]), "a valid file parses into its records, with big-endian ids");
+    assert_eq!(parse(&file(1, &[])), Ok(vec![]), "a file with no records is valid");
+    assert_eq!(parse(b"PWAX\\x01\\x00\\x00"), Err(ParseError::BadMagic), "wrong magic bytes");
+    assert_eq!(parse(&file(2, &[])), Err(ParseError::UnsupportedVersion(2)), "only version 1 is supported");
+    assert_eq!(parse(&file(1, &[(1, &[0xff, 0xfe])])), Err(ParseError::InvalidUtf8), "names must be UTF-8");
+    let mut trailing = file(1, &[(1, b"x")]);
+    trailing.push(0);
+    assert_eq!(parse(&trailing), Err(ParseError::TrailingBytes), "bytes after the last record are an error");
+    for end in 0..valid.len() {
+        let expected = if end < 4 { ParseError::BadMagic } else { ParseError::Truncated };
+        assert_eq!(parse(&valid[..end]), Err(expected), "a file cut off after {end} bytes");
+    }
+    let mut huge = file(1, &[]);
+    huge[5] = 0xff;
+    huge[6] = 0xff;
+    assert_eq!(parse(&huge), Err(ParseError::Truncated), "a record count with no records behind it is Truncated");
+    std::panic::set_hook(Box::new(|_| {}));
+    let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
+    for round in 0..3_000 {
+        let mut input = if round % 2 == 0 { b"PWAY\\x01".to_vec() } else { Vec::new() };
+        seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+        let length = (seed >> 58) as usize;
+        for _ in 0..length {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            input.push((seed >> 56) as u8);
+        }
+        let outcome = std::panic::catch_unwind(|| parse(&input));
+        assert!(outcome.is_ok(), "parse panicked on input {input:?}: return an error instead");
+    }
+    let _ = std::panic::take_hook();
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-perf-cache-benchmark':
+      return {
+        files: { 'main.rs': `${code}
+
+struct Counting;
+static ALLOCATIONS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+unsafe impl std::alloc::GlobalAlloc for Counting {
+    unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8 {
+        ALLOCATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        unsafe { std::alloc::System.alloc(layout) }
+    }
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: std::alloc::Layout) {
+        unsafe { std::alloc::System.dealloc(pointer, layout) }
+    }
+    unsafe fn realloc(&self, pointer: *mut u8, layout: std::alloc::Layout, size: usize) -> *mut u8 {
+        ALLOCATIONS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        unsafe { std::alloc::System.realloc(pointer, layout, size) }
+    }
+}
+
+#[global_allocator]
+static GLOBAL: Counting = Counting;
+
+fn measure<T>(work: impl FnOnce() -> T) -> (T, usize) {
+    let before = ALLOCATIONS.load(std::sync::atomic::Ordering::Relaxed);
+    let result = work();
+    (result, ALLOCATIONS.load(std::sync::atomic::Ordering::Relaxed) - before)
+}
+
+fn main() {
+    let words = ["alpha", "beta", "gamma", "delta"];
+    let (joined, allocations) = measure(|| join_words(&words, ", "));
+    assert_eq!(joined, "alpha, beta, gamma, delta", "join_words joins with the separator");
+    assert_eq!(allocations, 1, "join_words should allocate exactly once (it allocated {allocations} times)");
+    let (empty, allocations) = measure(|| join_words(&[], ", "));
+    assert_eq!((empty.as_str(), allocations), ("", 0), "joining nothing allocates nothing");
+    let line = "4, 8, fifteen, 16 ,23,42, ";
+    let (numbers, allocations) = measure(|| parse_numbers(line));
+    assert_eq!(numbers, vec![4, 8, 16, 23, 42], "parse_numbers keeps the valid numbers in order");
+    assert!(allocations <= 1, "parse_numbers should allocate at most once (it allocated {allocations} times)");
+    let mut values = vec![1, 1, 2, 3, 3, 3, 7, 9, 9];
+    let ((), allocations) = measure(|| dedup_sorted(&mut values));
+    assert_eq!(values, vec![1, 2, 3, 7, 9], "dedup_sorted removes repeats");
+    assert_eq!(allocations, 0, "dedup_sorted should work in place without allocating (it allocated {allocations} times)");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
     case 'rust-structs-enums':
       return {
         files: { 'main.rs': `${code}

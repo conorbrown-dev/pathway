@@ -33,6 +33,10 @@ static partial class Curriculum
         "rust-net-framing" => RustNetFraming(lesson),
         "rust-net-concurrency-timeouts" => RustNetConcurrencyTimeouts(lesson),
         "rust-net-tokio-kv" => RustNetTokioKv(lesson),
+        "rust-bytes-endianness" => RustBytesEndianness(lesson),
+        "rust-slices-buffers" => RustSlicesBuffers(lesson),
+        "rust-binary-parser" => RustBinaryParser(lesson),
+        "rust-perf-cache-benchmark" => RustPerfCacheBenchmark(lesson),
         "rust-concurrency-send-sync" => RustConcurrencySendSync(lesson),
         "rust-async-tokio" => RustAsyncTokio(lesson),
         _ => lesson
