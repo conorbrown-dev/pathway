@@ -419,11 +419,152 @@ fn main() {
         tests: 3,
         runtime: 'rust',
       }
+    case 'rust-stack-heap-layout':
+      return {
+        files: { 'main.rs': `${code}
+
+fn expected_growth(n: usize) -> Vec<usize> {
+    let mut values: Vec<u64> = Vec::new();
+    let mut seen = Vec::new();
+    for i in 0..n {
+        let before = values.capacity();
+        values.push(i as u64);
+        if values.capacity() != before {
+            seen.push(values.capacity());
+        }
+    }
+    seen
+}
+
+fn main() {
+    let reading = SensorReading { id: 7, timestamp: 1_700_000_000, celsius: 21.5, active: true, flags: 0b101 };
+    assert!(reading.active && reading.flags == 5 && reading.id == 7 && reading.timestamp > 0 && reading.celsius > 21.0, "SensorReading keeps all five fields");
+    assert_eq!(std::mem::align_of::<SensorReading>(), 8, "a struct is aligned like its most-aligned field (u64)");
+    assert_eq!(std::mem::size_of::<SensorReading>(), 24, "order the fields so the #[repr(C)] struct takes 24 bytes, not 40");
+    assert_eq!(growth_steps(0), Vec::<usize>::new(), "pushing nothing never allocates");
+    assert_eq!(growth_steps(1), expected_growth(1), "the first push allocates");
+    assert_eq!(growth_steps(100), expected_growth(100), "capacities are recorded each time the Vec reallocates");
+    let mut values: Vec<u64> = Vec::with_capacity(10);
+    values.extend([1, 2, 3]);
+    assert_eq!(vec_footprint(&values), (24, 80), "a Vec<u64> is a 24-byte descriptor plus capacity * 8 bytes on the heap");
+    assert_eq!(vec_footprint(&Vec::new()), (24, 0), "an empty Vec has no heap allocation");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
     case 'rust-ownership':
       return {
-        files: { 'main.rs': `${code}\n\nfn main() {\n    assert_eq!(take_name(String::from(\"Ada\")), 3);\n    println!(\"PATHWAY_TEST_PASS\");\n}\n` },
+        files: { 'main.rs': `${code}
+
+static DROPS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+fn record_drop(name: &str) {
+    DROPS.lock().unwrap().push(name.to_string());
+}
+
+fn take_drops() -> Vec<String> {
+    std::mem::take(&mut *DROPS.lock().unwrap())
+}
+
+fn lease(name: &str) -> Lease {
+    Lease { name: String::from(name) }
+}
+
+fn main() {
+    {
+        let _first = lease("alpha");
+        let _second = lease("beta");
+    }
+    assert_eq!(take_drops(), ["beta", "alpha"], "values are dropped at the end of their scope, in reverse order of creation");
+    assert_eq!(hand_over(lease("gamma")), 5, "hand_over returns the name's length");
+    assert_eq!(take_drops(), ["gamma"], "hand_over owns its Lease, so it is dropped when hand_over returns");
+    let kept = keep_longest(lease("short"), lease("lengthy"));
+    assert_eq!(take_drops(), ["short"], "keep_longest drops the shorter lease before returning");
+    assert_eq!(kept.name, "lengthy", "keep_longest returns the longer lease");
+    drop(kept);
+    assert_eq!(take_drops(), ["lengthy"], "the returned lease belongs to the caller until the caller drops it");
+    let tie = keep_longest(lease("aaa"), lease("bbb"));
+    assert_eq!(tie.name, "aaa", "on a tie keep the first lease");
+    assert_eq!(take_drops(), ["bbb"], "on a tie the second lease is dropped");
+    drop(tie);
+    take_drops();
+    let original = String::from("quiet please");
+    let address = original.as_ptr();
+    let loud = shout(original);
+    assert_eq!(loud, "QUIET PLEASE", "shout uppercases the text");
+    assert_eq!(loud.as_ptr(), address, "shout must reuse the String it was given, not allocate a new one");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
         command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
-        tests: 2,
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-borrowing-references':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    let mut names = vec![String::from("ada"), String::from("grace")];
+    assert_eq!(total_len(&names), 8, "total_len adds up the lengths");
+    assert_eq!(total_len(&[]), 0, "no names, no length");
+    add_suffix(&mut names, "!");
+    assert_eq!(names, ["ada!", "grace!"], "add_suffix changes each name in place");
+    assert_eq!(total_len(&names), 10, "names are still usable after being borrowed");
+    let mut values = vec![4, 8];
+    assert_eq!(first_and_push(&mut values, 15), 4, "first_and_push returns the first element");
+    assert_eq!(values, [4, 8, 15], "first_and_push appends the extra value");
+    let text = String::from("borrow the longest word, keep the first");
+    let word = longest_word(&text);
+    assert_eq!(word, "longest", "longest_word finds the longest word");
+    assert_eq!(longest_word("tie two"), "tie", "on a tie the first word wins");
+    assert_eq!(longest_word("   "), "", "no words gives an empty slice");
+    assert_eq!(word.as_ptr(), text[11..].as_ptr(), "longest_word borrows from the text instead of copying");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-lifetimes':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    let outer = String::from("a longer string");
+    let result;
+    {
+        let inner = String::from("short");
+        result = longer(&outer, &inner).to_string();
+    }
+    assert_eq!(result, "a longer string", "longer returns the longer string");
+    assert_eq!(longer("abc", "xyz"), "abc", "on a tie longer returns the first");
+    assert_eq!(first_line("one\\ntwo"), "one", "first_line stops at the newline");
+    assert_eq!(first_line("only"), "only", "a single line is returned whole");
+    assert_eq!(first_line(""), "", "an empty text has an empty first line");
+
+    let text = String::from("  alpha beta\\tgamma  ");
+    let kept: Vec<&str>;
+    {
+        let mut words = Words::new(&text);
+        let first = words.next_word();
+        let second = words.next_word();
+        let third = words.next_word();
+        assert_eq!((first, second, third), (Some("alpha"), Some("beta"), Some("gamma")), "next_word walks the words in order");
+        assert_eq!(words.next_word(), None, "next_word returns None at the end");
+        kept = vec![first.unwrap(), second.unwrap()];
+    }
+    assert_eq!(kept, ["alpha", "beta"], "words borrowed from the text outlive the Words iterator");
+    assert_eq!(Words::new("   ").next_word(), None, "whitespace alone has no words");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
         runtime: 'rust',
       }
     case 'rust-structs-enums':
