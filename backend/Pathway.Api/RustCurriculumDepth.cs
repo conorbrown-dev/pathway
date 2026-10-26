@@ -6,6 +6,14 @@ static partial class Curriculum
     // sandbox-broker/src/evaluator.mjs that compiles and runs the learner's code.
     private static Lesson WithRustDepth(Lesson lesson) => lesson.Slug switch
     {
+        "rust-hello-functions" => RustHelloFunctions(lesson),
+        "rust-bindings-types" => RustBindingsTypes(lesson),
+        "rust-control-flow" => RustControlFlow(lesson),
+        "rust-collections-strings" => RustCollectionsStrings(lesson),
+        "rust-option-result" => RustOptionResult(lesson),
+        "rust-debugging-tests" => RustDebuggingTests(lesson),
+        "rust-crates-modules" => RustCratesModules(lesson),
+        "rust-cargo-quality" => RustCargoQuality(lesson),
         "rust-structs-enums" => RustStructsEnums(lesson),
         "rust-traits-generics" => RustTraitsGenerics(lesson),
         "rust-errors-panics" => RustErrorsPanics(lesson),

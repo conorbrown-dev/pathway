@@ -512,7 +512,14 @@ static ValidationResult ValidateCode(Lesson lesson, string code)
     {
         var rustPassed = lesson.Slug switch
         {
-            "rust-hello-functions" => code.Contains("fn greet", StringComparison.Ordinal) && code.Contains("format!", StringComparison.Ordinal),
+            "rust-hello-functions" => code.Contains("fn greet", StringComparison.Ordinal) && code.Contains("fn rectangle_area", StringComparison.Ordinal) && code.Contains("fn format_price", StringComparison.Ordinal) && code.Contains("format!", StringComparison.Ordinal),
+            "rust-bindings-types" => code.Contains("fn add_points", StringComparison.Ordinal) && code.Contains("fn checked_total", StringComparison.Ordinal) && code.Contains("fn to_byte", StringComparison.Ordinal) && code.Contains("fn next_tick", StringComparison.Ordinal),
+            "rust-control-flow" => code.Contains("fn http_class", StringComparison.Ordinal) && code.Contains("fn fizzbuzz", StringComparison.Ordinal) && code.Contains("fn collatz_steps", StringComparison.Ordinal),
+            "rust-collections-strings" => code.Contains("fn char_count", StringComparison.Ordinal) && code.Contains("fn initials", StringComparison.Ordinal) && code.Contains("fn word_frequencies", StringComparison.Ordinal),
+            "rust-option-result" => code.Contains("fn find_setting", StringComparison.Ordinal) && code.Contains("fn port", StringComparison.Ordinal) && code.Contains("fn parse_all", StringComparison.Ordinal),
+            "rust-debugging-tests" => code.Contains("fn is_leap_year", StringComparison.Ordinal) && code.Contains("fn days_in_month", StringComparison.Ordinal) && code.Contains("#[test]", StringComparison.Ordinal) && code.Contains("% 400", StringComparison.Ordinal),
+            "rust-crates-modules" => code.Contains("mod inventory", StringComparison.Ordinal) && code.Contains("pub struct Item", StringComparison.Ordinal) && code.Contains("mod report", StringComparison.Ordinal) && code.Contains("pub use", StringComparison.Ordinal),
+            "rust-cargo-quality" => code.Contains("fn log_level", StringComparison.Ordinal) && code.Contains("fn build_profile", StringComparison.Ordinal) && code.Contains("fn enabled_features", StringComparison.Ordinal) && code.Contains("cfg", StringComparison.Ordinal),
             "rust-ownership" => code.Contains("fn take_name", StringComparison.Ordinal) && code.Contains("String", StringComparison.Ordinal) && code.Contains(".len()", StringComparison.Ordinal),
             "rust-structs-enums" => code.Contains("enum Enrollment", StringComparison.Ordinal) && code.Contains("fn accept", StringComparison.Ordinal) && code.Contains("fn complete_lesson", StringComparison.Ordinal) && code.Contains("fn summary", StringComparison.Ordinal) && code.Contains("match", StringComparison.Ordinal),
             "rust-errors-panics" => code.Contains("enum DurationError", StringComparison.Ordinal) && code.Contains("fn parse_minutes", StringComparison.Ordinal) && code.Contains("fn total_minutes", StringComparison.Ordinal) && code.Contains("impl std::error::Error", StringComparison.Ordinal),
@@ -1087,7 +1094,6 @@ static partial class Curriculum
             Example = "cargo new hello_pathway\ncd hello_pathway\ncargo run\ncargo test",
             Exercise = new Exercise(ExerciseKind.Presentation, "Local setup practice", "Follow the lesson on your own computer, then continue to functions and output.", ["Install the prerequisites and Rust for your operating system.", "Verify rustc, cargo, and rustup display their versions.", "Create hello_pathway, edit src/main.rs, and run cargo run to see your own greeting.", "Run cargo build and cargo test from the project folder; a new project may contain no tests yet."], null, null, [], "Use the troubleshooting section if a command fails.", [])
         };
-        result[6] = result[6] with { Exercise = new Exercise(ExerciseKind.Code, "Write a greeting function", "Implement `greet` so it returns a non-empty greeting for a name.", ["Define `fn greet(name: &str) -> String`", "Return a greeting using the name"], "fn greet(name: &str) -> String {\n    todo!()\n}", null, [], "Use `format!` to build an owned String.", ["Returns a greeting"] ) };
         result[15] = result[15] with { Exercise = new Exercise(ExerciseKind.Code, "Move a value intentionally", "Define `take_name` that accepts an owned String and returns its length.", ["Accept a `String` parameter", "Return its `usize` length"], "fn take_name(name: String) -> usize {\n    todo!()\n}", null, [], "Use `name.len()`; ownership moves into this function.", ["Uses owned input"] ) };
         result[Array.FindIndex(result, lesson => lesson.Slug == "rust-ownership")] = result.First(lesson => lesson.Slug == "rust-ownership") with
         {

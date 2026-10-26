@@ -200,9 +200,223 @@ export function fixtureFor(lessonSlug, code) {
       }
     case 'rust-hello-functions':
       return {
-        files: { 'main.rs': `${code}\n\nfn main() {\n    let result = greet(\"Ada\");\n    assert!(!result.trim().is_empty());\n    assert!(result.contains(\"Ada\"));\n    println!(\"PATHWAY_TEST_PASS\");\n}\n` },
+        files: { 'main.rs': `${code}
+
+fn main() {
+    assert_eq!(greet("Ada"), "Hello, Ada!", "greet returns exactly Hello, <name>!");
+    assert_eq!(greet("Grace Hopper"), "Hello, Grace Hopper!", "greet keeps the whole name");
+    assert_eq!(rectangle_area(3, 4), 12, "rectangle_area multiplies width by height");
+    assert_eq!(rectangle_area(0, 9), 0, "a zero-width rectangle has no area");
+    assert_eq!(format_price("coffee", 305), "coffee: $3.05", "cents below ten keep their leading zero");
+    assert_eq!(format_price("tea", 250), "tea: $2.50", "whole tens of cents show two digits");
+    assert_eq!(format_price("gum", 5), "gum: $0.05", "prices under a dollar start with $0.");
+    assert_eq!(format_price("laptop", 129_999), "laptop: $1299.99", "large prices are not truncated");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
         command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
-        tests: 2,
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-bindings-types':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    assert_eq!(add_points(10, 5), 15, "add_points adds normally");
+    assert_eq!(add_points(250, 10), 255, "add_points stops at 255 instead of overflowing");
+    assert_eq!(add_points(255, 255), 255, "add_points stays at the maximum");
+    assert_eq!(checked_total(&[]), Some(0), "no prices total zero");
+    assert_eq!(checked_total(&[1_000, 2_500, 99]), Some(3_599), "checked_total adds prices");
+    assert_eq!(checked_total(&[u32::MAX, 1]), None, "checked_total reports overflow as None");
+    assert_eq!(checked_total(&[u32::MAX - 1, 1]), Some(u32::MAX), "the largest u32 still fits");
+    assert_eq!(to_byte(0), Some(0), "0 fits in a u8");
+    assert_eq!(to_byte(200), Some(200), "200 fits in a u8");
+    assert_eq!(to_byte(255), Some(255), "255 is the largest u8");
+    assert_eq!(to_byte(256), None, "256 does not fit in a u8");
+    assert_eq!(to_byte(300), None, "300 must be refused, not truncated to 44");
+    assert_eq!(to_byte(-1), None, "negative numbers do not fit in a u8");
+    assert_eq!(next_tick(41), 42, "next_tick counts up");
+    assert_eq!(next_tick(u16::MAX), 0, "next_tick wraps from 65535 to 0");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-control-flow':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    assert_eq!(http_class(100), "informational", "100 is informational");
+    assert_eq!(http_class(204), "success", "204 is success");
+    assert_eq!(http_class(301), "redirect", "301 is a redirect");
+    assert_eq!(http_class(404), "client error", "404 is a client error");
+    assert_eq!(http_class(499), "client error", "499 is still a client error");
+    assert_eq!(http_class(503), "server error", "503 is a server error");
+    assert_eq!(http_class(599), "server error", "599 is the last server error");
+    assert_eq!(http_class(600), "invalid", "600 is not a valid status");
+    assert_eq!(http_class(42), "invalid", "42 is not a valid status");
+    let sequence: Vec<String> = (1..=15).map(fizzbuzz).collect();
+    assert_eq!(sequence.join(","), "1,2,Fizz,4,Buzz,Fizz,7,8,Fizz,Buzz,11,Fizz,13,14,FizzBuzz", "fizzbuzz from 1 to 15");
+    assert_eq!(collatz_steps(1), 0, "1 needs no steps");
+    assert_eq!(collatz_steps(6), 8, "6 reaches 1 in 8 steps");
+    assert_eq!(collatz_steps(27), 111, "27 reaches 1 in 111 steps");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-collections-strings':
+      return {
+        files: { 'main.rs': `${code}
+
+fn pairs(items: &[(&str, usize)]) -> Vec<(String, usize)> {
+    items.iter().map(|(word, count)| (word.to_string(), *count)).collect()
+}
+
+fn main() {
+    assert_eq!(char_count(""), 0, "an empty string has no characters");
+    assert_eq!(char_count("hello"), 5, "ASCII characters count once each");
+    assert_eq!(char_count("héllo"), 5, "é is one character even though it takes two bytes");
+    assert_eq!(char_count("日本語"), 3, "each Japanese character counts once");
+    assert_eq!(initials("ada lovelace"), "AL", "initials of two words");
+    assert_eq!(initials("  grace   brewster  hopper "), "GBH", "extra spaces are ignored");
+    assert_eq!(initials("émile zola"), "ÉZ", "accented letters are uppercased, not dropped");
+    assert_eq!(initials(""), "", "no words, no initials");
+    assert_eq!(word_frequencies("the cat and the hat. The end"), pairs(&[("the", 3), ("and", 1), ("cat", 1), ("end", 1), ("hat", 1)]), "counts ignore case and punctuation; ties sort alphabetically");
+    assert_eq!(word_frequencies("Go, go, GO!"), pairs(&[("go", 3)]), "the same word in different cases is one word");
+    assert_eq!(word_frequencies("  ... "), pairs(&[]), "punctuation alone is not a word");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-option-result':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    let config = "# Pathway service\\nname = learner-api\\nport = 8080\\nbroken line\\n  timeout=30  \\n";
+    assert_eq!(find_setting(config, "name"), Some(String::from("learner-api")), "find_setting returns the trimmed value");
+    assert_eq!(find_setting(config, "timeout"), Some(String::from("30")), "spaces around the key and value are ignored");
+    assert_eq!(find_setting(config, "missing"), None, "a missing key is None");
+    assert_eq!(find_setting("# port = 1\\n", "port"), None, "comment lines are ignored");
+    assert_eq!(find_setting("port = 1\\nport = 2\\n", "port"), Some(String::from("1")), "the first match wins");
+    assert_eq!(port(config), Ok(8080), "port parses the port setting");
+    assert_eq!(port("name = x\\n"), Err(String::from("missing port")), "a missing port is an Err, not a panic");
+    assert_eq!(port("port = eighty\\n"), Err(String::from("invalid port: eighty")), "a non-numeric port is an Err");
+    assert_eq!(port("port = 70000\\n"), Err(String::from("invalid port: 70000")), "a port above 65535 is an Err");
+    assert_eq!(parse_all(&["1", " -2 ", "30"]), Ok(vec![1, -2, 30]), "parse_all trims and parses every input");
+    assert_eq!(parse_all(&[]), Ok(vec![]), "no inputs parse to an empty list");
+    assert_eq!(parse_all(&["4", "x", "y"]), Err(String::from("bad number: x")), "parse_all stops at the first bad input");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-debugging-tests':
+      return {
+        files: { 'main.rs': `${code}
+
+#[cfg(test)]
+mod pathway_grader {
+    use super::*;
+
+    #[test]
+    fn grader_leap_years() {
+        assert!(is_leap_year(2024), "2024 is a leap year");
+        assert!(!is_leap_year(2023), "2023 is not a leap year");
+        assert!(!is_leap_year(1900), "1900 is not a leap year: divisible by 100 but not 400");
+        assert!(is_leap_year(2000), "2000 is a leap year: divisible by 400");
+    }
+
+    #[test]
+    fn grader_days_in_month() {
+        assert_eq!(days_in_month(2024, 1), Some(31), "January has 31 days");
+        assert_eq!(days_in_month(2023, 4), Some(30), "April has 30 days");
+        assert_eq!(days_in_month(2024, 2), Some(29), "February 2024 has 29 days");
+        assert_eq!(days_in_month(1900, 2), Some(28), "February 1900 has 28 days");
+        assert_eq!(days_in_month(2023, 0), None, "there is no month 0");
+        assert_eq!(days_in_month(2023, 13), None, "there is no month 13");
+    }
+}
+` },
+        // Build the test harness, require at least three of the learner's own tests, then run
+        // every test: the learner's must pass as well as the grader's.
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 --test /workspace/main.rs -o /workspace/main && count=$(/workspace/main --list 2>/dev/null | grep ": test$" | grep -vc "^pathway_grader::") ; if [ "$count" -lt 3 ]; then echo "Write at least three #[test] functions of your own (found $count)."; exit 1; fi && /workspace/main --test-threads=1 && echo PATHWAY_TEST_PASS'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-crates-modules':
+      return {
+        files: {
+          'main.rs': `${code}
+
+fn main() {
+    let mut item = inventory::Item::new("widget", 3);
+    assert_eq!(item.name, "widget", "name is public");
+    assert_eq!(item.quantity(), 3, "quantity() reads the stock level");
+    assert_eq!(describe(&item), "widget x3", "describe is re-exported at the crate root");
+    assert_eq!(inventory::report::describe(&item), "widget x3", "describe is also reachable through inventory::report");
+    assert_eq!(item.remove(2), Ok(()), "removing available stock succeeds");
+    assert_eq!(item.quantity(), 1, "remove lowers the quantity");
+    assert_eq!(item.remove(5), Err(String::from("only 1 left")), "removing too much is refused");
+    assert_eq!(item.quantity(), 1, "a refused removal changes nothing");
+    println!("PATHWAY_TEST_PASS");
+}
+`,
+          'probe.rs': `${code}
+
+fn main() {
+    let mut item = inventory::Item::new("widget", 3);
+    item.quantity = 99;
+}
+`,
+        },
+        // probe.rs must NOT compile: code outside the module may not set quantity directly.
+        command: ['/bin/sh', '-c', 'if rustc --edition=2024 /workspace/probe.rs -o /workspace/probe >/dev/null 2>&1; then echo "Code outside the inventory module can set item.quantity directly. Keep the quantity field private."; exit 1; fi; rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-cargo-quality':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    let build = std::env::args().nth(1).unwrap_or_default();
+    let features = enabled_features();
+    match build.as_str() {
+        "plain" => {
+            assert_eq!(log_level(), "info", "without the verbose feature, log_level is info");
+            assert_eq!(build_profile(), "debug", "a build without -O is a debug build");
+            assert!(features.is_empty(), "no features were enabled, but enabled_features returned {features:?}");
+        }
+        "metrics" => {
+            assert_eq!(log_level(), "info", "the metrics feature alone does not change log_level");
+            assert_eq!(features, vec!["metrics"], "only metrics was enabled");
+        }
+        "full" => {
+            assert_eq!(log_level(), "debug", "with the verbose feature, log_level is debug");
+            assert_eq!(build_profile(), "release", "a build with -O is a release build");
+            assert_eq!(features, vec!["verbose", "metrics"], "both features, verbose first");
+            println!("PATHWAY_TEST_PASS");
+        }
+        other => panic!("unknown build {other}"),
+    }
+}
+` },
+        // Compile the same source three ways, the way Cargo would for different feature sets and profiles.
+        command: ['/bin/sh', '-c', `rustc --edition=2024 /workspace/main.rs -o /workspace/plain && /workspace/plain plain && rustc --edition=2024 --cfg 'feature="metrics"' /workspace/main.rs -o /workspace/metrics && /workspace/metrics metrics && rustc --edition=2024 -O --cfg 'feature="verbose"' --cfg 'feature="metrics"' /workspace/main.rs -o /workspace/full && /workspace/full full`],
+        tests: 3,
         runtime: 'rust',
       }
     case 'rust-ownership':

@@ -137,6 +137,14 @@ public class CurriculumInvariantTests
     }
 
     [Theory]
+    [InlineData("rust-hello-functions")]
+    [InlineData("rust-bindings-types")]
+    [InlineData("rust-control-flow")]
+    [InlineData("rust-collections-strings")]
+    [InlineData("rust-option-result")]
+    [InlineData("rust-debugging-tests")]
+    [InlineData("rust-crates-modules")]
+    [InlineData("rust-cargo-quality")]
     [InlineData("rust-structs-enums")]
     [InlineData("rust-traits-generics")]
     [InlineData("rust-errors-panics")]
@@ -167,6 +175,20 @@ public class CurriculumInvariantTests
             .Select(lesson => lesson.Slug)
             .ToArray();
         Assert.True(missing.Length == 0, $"Rust code exercises without a broker fixture: {string.Join(", ", missing)}");
+    }
+
+    [Fact]
+    public void Rust_foundations_checkpoint_answers_are_choices_and_reviews_are_real_lessons()
+    {
+        var assessment = AssessmentCatalog.Get("rust-systems", "rust-foundations");
+        Assert.NotNull(assessment);
+        var slugs = LessonsOf("rust-systems").Select(lesson => lesson.Slug).ToHashSet();
+        Assert.True(assessment!.Questions.Length >= 8, "The foundations checkpoint should be sized to its module.");
+        Assert.All(assessment.Questions, question =>
+        {
+            Assert.Contains(question.CorrectAnswer, question.Choices);
+            Assert.True(slugs.Contains(question.ReviewLessonSlug), $"{question.Id}: review lesson '{question.ReviewLessonSlug}' is not in the Rust course.");
+        });
     }
 
     private static string FindRepositoryFile(string relativePath)
