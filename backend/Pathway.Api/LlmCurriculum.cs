@@ -40,6 +40,8 @@ static partial class Curriculum
         .. LlmNeuralSpecs(),
         .. LlmLanguageSpecs(),
         .. LlmTransformerSpecs(),
+        .. LlmFrontierSpecs(),
+        .. LlmSystemsSpecs(),
     ];
 
     /// <summary>Each lesson's declared prerequisites, in course order (used by the invariant tests).</summary>
