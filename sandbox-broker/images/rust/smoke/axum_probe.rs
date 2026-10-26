@@ -34,6 +34,11 @@ async fn run() -> anyhow::Result<()> {
     if value != Some(42) {
         return Err(ProbeError(String::from("channel")).into());
     }
+    let sqlite = rusqlite::Connection::open_in_memory()?;
+    let two: i64 = sqlite.query_row("SELECT 1 + 1", [], |row| row.get(0))?;
+    if two != 2 {
+        return Err(ProbeError(String::from("sqlite")).into());
+    }
     loopback_round_trip().await
 }
 
