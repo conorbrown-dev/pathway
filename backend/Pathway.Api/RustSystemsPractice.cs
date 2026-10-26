@@ -283,6 +283,15 @@ static partial class Curriculum
 
             **Writes.** `set` appends a SET record, then updates the index. `delete` appends a DELETE record (a **tombstone**), then removes the key from the index. Updating the index only *after* the append succeeded means a failed write never leaves the in-memory state claiming something the disk doesn't have.
 
+            ```rust
+            fn set(&mut self, key: &str, value: &str) -> io::Result<()> {
+                self.file.write_all(&encode(SET, key, value))?; // one append...
+                self.file.sync_data()?;                          // ...made durable...
+                self.index.insert(key.to_string(), value.to_string()); // ...then remembered
+                Ok(())
+            }
+            ```
+
             **Startup.** `open` reads the whole log and **replays** it from the beginning: each SET inserts, each DELETE removes. Because later records override earlier ones, replay ends in exactly the state the store was in. The log *is* the database; the index is a cache of it.
 
             Appending is fast (sequential writes are what disks and SSDs do best), and the design is simple to reason about. The costs: the log grows with every update even if the number of keys doesn't, and the whole index must fit in memory. Compaction addresses the first; the second is a real limit that more advanced designs (LSM trees, B-trees) remove.
