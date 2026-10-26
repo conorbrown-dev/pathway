@@ -118,6 +118,8 @@ const courseBadgeText = (course: { id: string; languageId: string }) =>
                       ? "EE"
                       : course.languageId === "math"
                       ? "f(x)"
+                      : course.languageId === "llm"
+                      ? "LLM"
                       : course.languageId === "git"
                         ? "Git"
                         : course.languageId === "web"
@@ -268,7 +270,7 @@ function App() {
   );
   useEffect(() => {
     if (course)
-      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.languageId === "math" ? "Precalculus" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
+      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.languageId === "math" ? "Precalculus" : course.languageId === "llm" ? "How AI Works" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
   }, [course]);
   const notify = (message: string) => {
     setToast(message);
@@ -752,6 +754,7 @@ function Onboarding({
   const computingSelected = selectedCourseId === "computing-foundations";
   const electricalSelected = selectedCourseId === "electrical-engineering-foundations";
   const precalculusSelected = selectedCourseId === "precalculus";
+  const llmSelected = selectedCourseId === "ai-llm-engineering";
   const gitSelected = selectedCourseId === "git-cli";
   const webBasicsSelected = selectedCourseId === "web-development-basics";
   const sqliteSelected = selectedCourseId === "sqlite";
@@ -836,6 +839,18 @@ function Onboarding({
                   <small className="mt-1 block text-xs text-[#aaa3b6]">Functions · growth · trigonometry · real-world models</small>
                 </span>
                 {precalculusSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
+              </button>
+              <button
+                aria-label="Select How AI works course"
+                onClick={() => onSelectCourse("ai-llm-engineering")}
+                className={`track-option mt-3 flex w-full items-center gap-4 rounded-xl p-4 text-left ${llmSelected ? "ring-1 ring-[#bd87ff]" : ""}`}
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#3d6fb0] font-mono text-xs font-bold text-white">LLM</span>
+                <span>
+                  <strong className="block text-sm text-white">How AI works: LLMs end to end</strong>
+                  <small className="mt-1 block text-xs text-[#aaa3b6]">Math · neural networks · transformers · your own model in opencode</small>
+                </span>
+                {llmSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
               </button>
               <button
                 onClick={() => onSelectCourse("git-cli")}
@@ -1596,7 +1611,22 @@ function WorkspacePanel({
     );
   }
   const stages =
-    course.id === "precalculus"
+    course.id === "ai-llm-engineering"
+      ? [
+          [
+            "Build the pieces by hand",
+            "Write a tokenizer, an autograd engine, attention and a sampler in plain Python, then train a tiny GPT on your own machine.",
+          ],
+          [
+            "Fine-tune and measure",
+            "Pick a narrow job, build a dataset, LoRA fine-tune a small open-weight model, and compare it with the base model and a frontier model on a held-out test set.",
+          ],
+          [
+            "Ship it beside Claude and Codex",
+            "Serve your model locally behind an OpenAI-compatible endpoint, run it as a specialist subagent in opencode, and present the whole pipeline with your numbers.",
+          ],
+        ]
+      : course.id === "precalculus"
       ? [
           [
             "Model the everyday",

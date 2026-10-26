@@ -136,6 +136,60 @@ public class CurriculumInvariantTests
         });
     }
 
+    [Fact]
+    public void Llm_lessons_follow_the_authoring_rules()
+    {
+        // docs/llm-curriculum.md: prerequisites first, every symbol named, and an
+        // "Explain it to your team" section that builds toward the final presentation.
+        var lessons = LessonsOf("ai-llm-engineering");
+        Assert.NotEmpty(lessons);
+        Assert.All(lessons, lesson =>
+        {
+            Assert.StartsWith("Python", lesson.Version.Language);
+            Assert.NotEqual(lesson.Subtitle, lesson.Concept);
+            Assert.StartsWith("## What you need first", lesson.Body);
+            Assert.True(lesson.Body.Contains("## What the symbols stand for") || lesson.Body.Contains("## What the words mean"), $"{lesson.Slug}: name every symbol or term in a \"What the symbols stand for\" or \"What the words mean\" section.");
+            Assert.Contains("## Explain it to your team", lesson.Body);
+            if (lesson.Exercise.Kind == ExerciseKind.Code)
+            {
+                Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.StarterCode), $"{lesson.Slug}: code exercise has no starter code.");
+                Assert.NotEmpty(lesson.Exercise.Requirements);
+            }
+        });
+    }
+
+    [Fact]
+    public void Llm_lessons_only_build_on_earlier_lessons()
+    {
+        // The course promise: no concept is used before the lesson that teaches it.
+        var order = LessonsOf("ai-llm-engineering").ToDictionary(lesson => lesson.Slug, lesson => lesson.Order);
+        foreach (var (slug, needs) in Curriculum.LlmPrerequisites())
+        {
+            Assert.True(order.ContainsKey(slug), $"{slug} is declared but not in the course.");
+            foreach (var need in needs)
+            {
+                Assert.True(order.TryGetValue(need, out var needOrder), $"{slug} needs '{need}', which is not in the course.");
+                Assert.True(needOrder < order[slug], $"{slug} (lesson {order[slug]}) needs '{need}' (lesson {needOrder}), which comes later.");
+            }
+        }
+        // Every lesson after the first builds on something.
+        Assert.All(Curriculum.LlmPrerequisites().Skip(1), entry => Assert.NotEmpty(entry.Needs));
+    }
+
+    [Fact]
+    public void Every_Llm_code_exercise_has_a_python_grader_and_every_grader_has_a_lesson()
+    {
+        var graders = new DirectoryInfo(Path.GetDirectoryName(FindRepositoryFile("sandbox-broker/src/llm-graders/_harness.py"))!)
+            .GetFiles("llm-*.py")
+            .Select(file => Path.GetFileNameWithoutExtension(file.Name))
+            .ToHashSet(StringComparer.Ordinal);
+        var codeLessons = LessonsOf("ai-llm-engineering").Where(lesson => lesson.Exercise.Kind == ExerciseKind.Code).Select(lesson => lesson.Slug).ToHashSet(StringComparer.Ordinal);
+        var missing = codeLessons.Except(graders).ToArray();
+        var orphaned = graders.Except(codeLessons).ToArray();
+        Assert.True(missing.Length == 0, $"LLM code exercises without a grader in sandbox-broker/src/llm-graders: {string.Join(", ", missing)}");
+        Assert.True(orphaned.Length == 0, $"Graders without a matching code lesson: {string.Join(", ", orphaned)}");
+    }
+
     [Theory]
     [InlineData("rust-hello-functions")]
     [InlineData("rust-bindings-types")]

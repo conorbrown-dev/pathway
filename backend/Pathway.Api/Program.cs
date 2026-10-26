@@ -557,6 +557,17 @@ static ValidationResult ValidateCode(Lesson lesson, string code)
         };
         return new ValidationResult(rustPassed, rustPassed ? 2 : 0, 2, rustPassed ? "All tests passed. Your Rust solution meets this lesson’s checks." : lesson.Exercise.Hint, rustPassed ? lesson.NextSlug : null, BuildCodeReview(lesson, code));
     }
+    if (lesson.Slug.StartsWith("llm-", StringComparison.Ordinal))
+    {
+        // Local authoring only: check that every function named in the requirements is defined.
+        // Deployed lessons run the real Python grader (sandbox-broker/src/llm-graders) in the sandbox.
+        var required = lesson.Exercise.Requirements
+            .SelectMany(requirement => System.Text.RegularExpressions.Regex.Matches(requirement, @"`(\w+)\(").Select(match => match.Groups[1].Value))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var llmPassed = required.Length > 0 && required.All(name => code.Contains($"def {name}(", StringComparison.Ordinal));
+        return new ValidationResult(llmPassed, llmPassed ? 2 : 0, 2, llmPassed ? "Every required function is defined. Deployed lessons run the full grader in the sandbox." : lesson.Exercise.Hint, llmPassed ? lesson.NextSlug : null, BuildCodeReview(lesson, code));
+    }
     if (lesson.Slug.StartsWith("python-", StringComparison.Ordinal))
     {
         var pythonPassed = lesson.Slug switch
@@ -956,6 +967,7 @@ static partial class Curriculum
 
     public static readonly Lesson[] ElectricalEngineeringLessons = BuildElectricalEngineeringLessons();
     public static readonly Lesson[] PrecalculusLessons = BuildPrecalculusLessons();
+    public static readonly Lesson[] LlmLessons = BuildLlmLessons();
     public static readonly Lesson[] ReactCourseLessons = BuildReactCourseLessons();
     public static readonly Lesson[] ReactLiteCourseLessons = BuildReactLiteCourseLessons();
     public static readonly Lesson[] WebBasicsLessons = BuildWebBasicsLessons();
@@ -967,6 +979,7 @@ static partial class Curriculum
     public static readonly Dictionary<string, Lesson> BySlug = ComputingLessons
         .Concat(ElectricalEngineeringLessons)
         .Concat(PrecalculusLessons)
+        .Concat(LlmLessons)
         .Concat(WebBasicsLessons)
         .Concat(TailwindLessons)
         .Concat(SQLiteLessons)
@@ -983,6 +996,7 @@ static partial class Curriculum
 
     public static readonly Course ComputingCourse = BuildCourse("computing-foundations", "Computing Foundations", "computing", "Core computing", "Machine · data · processes · OS", "2026-09-24", ComputingLessons);
     public static readonly Course ElectricalEngineeringCourse = BuildCourse("electrical-engineering-foundations", "Electrical Engineering Foundations", "electrical-engineering", "EE Foundations", "Circuits · measurement · components · practical builds", "2026-10-16", ElectricalEngineeringLessons);
+    public static readonly Course LlmCourse = BuildCourse("ai-llm-engineering", "How AI works: LLMs end to end", "llm", "AI & LLMs", "Math · neural networks · transformers · training · your own model in opencode", "2026-10-26", LlmLessons);
     public static readonly Course PrecalculusCourse = BuildCourse("precalculus", "Precalculus: math you can picture", "math", "Precalculus", "Functions · growth · trigonometry · real-world models", "2026-10-25", PrecalculusLessons);
     public static readonly Course GitCliCourse = BuildCourse("git-cli", "Git CLI", "git", "Git CLI", "Repositories · branches · remotes · recovery", "2026-09-26", GitCliLessons);
     public static readonly Course WebBasicsCourse = BuildCourse("web-development-basics", "Web Development Basics 2026", "web", "Web Platform 2026", "HTML · CSS · JavaScript · TypeScript · HTTP", "2026-09-26", WebBasicsLessons);
@@ -1002,6 +1016,7 @@ static partial class Curriculum
         [ComputingCourse.Id] = ComputingCourse,
         [ElectricalEngineeringCourse.Id] = ElectricalEngineeringCourse,
         [PrecalculusCourse.Id] = PrecalculusCourse,
+        [LlmCourse.Id] = LlmCourse,
         [GitCliCourse.Id] = GitCliCourse,
         [WebBasicsCourse.Id] = WebBasicsCourse,
         [TailwindCourse.Id] = TailwindCourse,
@@ -1021,6 +1036,7 @@ static partial class Curriculum
         new(ComputingCourse.Id, ComputingCourse.Title, ComputingCourse.LanguageId, ComputingCourse.LanguageVersion, ComputingCourse.FrameworkVersion, true),
         new(ElectricalEngineeringCourse.Id, ElectricalEngineeringCourse.Title, ElectricalEngineeringCourse.LanguageId, ElectricalEngineeringCourse.LanguageVersion, ElectricalEngineeringCourse.FrameworkVersion, true),
         new(PrecalculusCourse.Id, PrecalculusCourse.Title, PrecalculusCourse.LanguageId, PrecalculusCourse.LanguageVersion, PrecalculusCourse.FrameworkVersion, true),
+        new(LlmCourse.Id, LlmCourse.Title, LlmCourse.LanguageId, LlmCourse.LanguageVersion, LlmCourse.FrameworkVersion, true),
         new(GitCliCourse.Id, GitCliCourse.Title, GitCliCourse.LanguageId, GitCliCourse.LanguageVersion, GitCliCourse.FrameworkVersion, true),
         new(WebBasicsCourse.Id, WebBasicsCourse.Title, WebBasicsCourse.LanguageId, WebBasicsCourse.LanguageVersion, WebBasicsCourse.FrameworkVersion, true),
         new(TailwindCourse.Id, TailwindCourse.Title, TailwindCourse.LanguageId, TailwindCourse.LanguageVersion, TailwindCourse.FrameworkVersion, true),
