@@ -1134,6 +1134,200 @@ fn main() {
         tests: 3,
         runtime: 'rust',
       }
+    case 'rust-memory-addresses-raw':
+      return {
+        files: {
+          'submission.rs': code,
+          'main.rs': `${code}
+
+fn main() {
+    let values = [10u32, 20, 30];
+    assert_eq!(checked_read(&values, 0), Some(10), "the first element");
+    assert_eq!(checked_read(&values, 2), Some(30), "the last element");
+    assert_eq!(checked_read(&values, 3), None, "an index past the end is None, never a read past the slice");
+    assert_eq!(checked_read(&[], 0), None, "an empty slice has no elements");
+    // SAFETY: values has 3 elements, so index 1 is in bounds.
+    assert_eq!(unsafe { read_nth(values.as_ptr(), 1) }, 20, "read_nth counts in elements, not bytes");
+    assert_eq!(element_stride(&[1u64, 2, 3]), 8, "neighbouring u64s are 8 bytes apart");
+    assert_eq!(element_stride(&[1u64]), 0, "fewer than two elements has no stride");
+    println!("PATHWAY_TEST_PASS");
+}
+`,
+        },
+        command: ['/bin/sh', '-c', 'blocks=$(grep -o "unsafe {" /workspace/submission.rs | wc -l); notes=$(grep -o "SAFETY:" /workspace/submission.rs | wc -l); if [ "$notes" -lt "$blocks" ]; then echo "Every unsafe block needs a // SAFETY: comment explaining why it is sound ($blocks unsafe blocks, $notes SAFETY comments)."; exit 1; fi; rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-unsafe-ffi':
+      return {
+        files: {
+          'submission.rs': code,
+          'main.rs': `${code}
+
+fn main() {
+    assert_eq!(c_strlen("hello"), Some(5), "strlen counts bytes up to the NUL");
+    assert_eq!(c_strlen(""), Some(0), "an empty string");
+    assert_eq!(c_strlen("héllo"), Some(6), "C counts bytes, not characters");
+    assert_eq!(c_strlen("bad\\0text"), None, "text containing a NUL byte can't become a C string: None, not a panic");
+    assert_eq!(c_abs(-42), Some(42), "abs of a negative number");
+    assert_eq!(c_abs(7), Some(7), "abs of a positive number");
+    assert_eq!(c_abs(i32::MAX), Some(i32::MAX), "the largest int");
+    assert_eq!(c_abs(i32::MIN), None, "abs(INT_MIN) is undefined behavior in C, so it must never be called");
+    let owned = std::ffi::CString::new("from C").unwrap();
+    // SAFETY: owned is a live, NUL-terminated string.
+    assert_eq!(unsafe { from_c_string(owned.as_ptr()) }, Some(String::from("from C")), "reads a C string");
+    // SAFETY: a null pointer is explicitly allowed by from_c_string's contract.
+    assert_eq!(unsafe { from_c_string(std::ptr::null()) }, None, "a null pointer is None, never dereferenced");
+    let invalid = std::ffi::CString::new(vec![0xffu8, 0xfe]).unwrap();
+    // SAFETY: invalid is a live, NUL-terminated string.
+    assert_eq!(unsafe { from_c_string(invalid.as_ptr()) }, None, "bytes that aren't UTF-8 are None, not replaced");
+    println!("PATHWAY_TEST_PASS");
+}
+`,
+        },
+        command: ['/bin/sh', '-c', 'blocks=$(grep -o "unsafe {" /workspace/submission.rs | wc -l); notes=$(grep -o "SAFETY:" /workspace/submission.rs | wc -l); if [ "$notes" -lt "$blocks" ]; then echo "Every unsafe block needs a // SAFETY: comment explaining why it is sound ($blocks unsafe blocks, $notes SAFETY comments)."; exit 1; fi; rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-atomics-locks':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(6));
+        eprintln!("The test timed out: something is waiting forever (a deadlock, or a signal that is never checked?).");
+        std::process::exit(1);
+    });
+    let counter = Counter::new();
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            scope.spawn(|| {
+                for _ in 0..10_000 {
+                    counter.increment();
+                }
+            });
+        }
+    });
+    assert_eq!(counter.get(), 80_000, "no increment may be lost when 8 threads count at once");
+    for round in 0..50 {
+        let flag = OnceFlag::new();
+        let barrier = std::sync::Barrier::new(16);
+        let winners = std::sync::atomic::AtomicUsize::new(0);
+        std::thread::scope(|scope| {
+            for _ in 0..16 {
+                scope.spawn(|| {
+                    barrier.wait();
+                    if flag.try_claim() {
+                        winners.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    }
+                });
+            }
+        });
+        assert_eq!(winners.into_inner(), 1, "exactly one of 16 threads may claim the flag (round {round})");
+    }
+    let alice = std::sync::Mutex::new(1_000i64);
+    let bob = std::sync::Mutex::new(1_000i64);
+    std::thread::scope(|scope| {
+        scope.spawn(|| for _ in 0..20_000 { transfer(&alice, &bob, 1) });
+        scope.spawn(|| for _ in 0..20_000 { transfer(&bob, &alice, 1) });
+    });
+    assert_eq!((*alice.lock().unwrap(), *bob.lock().unwrap()), (1_000, 1_000), "opposite transfers cancel out, and no money is created or lost");
+    transfer(&alice, &alice, 50);
+    assert_eq!(*alice.lock().unwrap(), 1_000, "a transfer to the same account changes nothing (and must not deadlock)");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-macros':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    assert_eq!(square!(7), 49, "square of a literal");
+    assert_eq!(square!(2 + 3), 25, "square of an expression is (2 + 3) squared, not 2 + 3 * 2 + 3");
+    let mut calls = 0;
+    let mut next = || { calls += 1; 4 };
+    assert_eq!(square!(next()), 16, "square of a function call");
+    assert_eq!(calls, 1, "the expression passed to square! must be evaluated exactly once");
+    let ages: std::collections::HashMap<&str, u32> = hashmap! { "ada" => 36, "grace" => 85 };
+    assert_eq!((ages.len(), ages["ada"], ages["grace"]), (2, 36, 85), "hashmap! builds a map");
+    let trailing: std::collections::HashMap<u8, char> = hashmap! { 1 => 'a', 2 => 'b', };
+    assert_eq!(trailing.len(), 2, "a trailing comma is accepted");
+    let empty: std::collections::HashMap<u8, u8> = hashmap! {};
+    assert!(empty.is_empty(), "hashmap! with nothing inside is an empty map");
+    assert_eq!(max_of!(3), 3, "max_of one value");
+    assert_eq!(max_of!(3, 9, 2), 9, "max_of three values");
+    assert_eq!(max_of!(-5, -1, -9, -3, -2,), -1, "max_of any number of values, with a trailing comma");
+    assert_eq!(max_of!("pear", "apple"), "pear", "max_of works for any comparable type");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-structured-concurrency':
+      return {
+        files: { 'main.rs': `${code}
+
+async fn job(id: u32, done: std::sync::Arc<std::sync::atomic::AtomicUsize>) -> Result<u32, String> {
+    tokio::time::sleep(std::time::Duration::from_millis(u64::from(id) * 10)).await;
+    if id == 3 {
+        return Err(String::from("job 3 failed"));
+    }
+    done.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    Ok(id * 2)
+}
+
+#[tokio::main]
+async fn main() {
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(6));
+        eprintln!("The test timed out: something is waiting forever (a deadlock, or a signal that is never checked?).");
+        std::process::exit(1);
+    });
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::{Duration, Instant};
+    let done = Arc::new(AtomicUsize::new(0));
+    assert_eq!(run_all(vec![5, 1, 4], Arc::clone(&done)).await, Ok(vec![10, 2, 8]), "results come back in input order");
+    let done = Arc::new(AtomicUsize::new(0));
+    let started = Instant::now();
+    let result = run_all(vec![1, 2, 3, 50, 60], Arc::clone(&done)).await;
+    assert_eq!(result, Err(String::from("job 3 failed")), "the first error is returned");
+    assert!(started.elapsed() < Duration::from_millis(300), "run_all returns as soon as a job fails, without waiting for slow jobs");
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    assert_eq!(done.load(Ordering::SeqCst), 2, "jobs still running when one failed are cancelled, not left running in the background");
+
+    let (job_sender, jobs) = tokio::sync::mpsc::channel(8);
+    let (stop, shutdown) = tokio::sync::watch::channel(false);
+    let handle = tokio::spawn(worker(jobs, shutdown));
+    for value in [1, 2, 3] {
+        job_sender.send(value).await.unwrap();
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    stop.send(true).unwrap();
+    let total = tokio::time::timeout(Duration::from_secs(1), handle).await.expect("the worker must stop promptly when shutdown is signalled, even though its job channel is still open").unwrap();
+    assert_eq!(total, 6, "the worker finished the jobs it received before shutdown");
+    drop(job_sender);
+
+    let (job_sender, jobs) = tokio::sync::mpsc::channel(8);
+    let (_stop, shutdown) = tokio::sync::watch::channel(false);
+    let handle = tokio::spawn(worker(jobs, shutdown));
+    job_sender.send(10).await.unwrap();
+    drop(job_sender);
+    assert_eq!(tokio::time::timeout(Duration::from_secs(1), handle).await.expect("the worker stops when every sender is gone").unwrap(), 10, "closing the channel ends the worker");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
     case 'rust-structs-enums':
       return {
         files: { 'main.rs': `${code}

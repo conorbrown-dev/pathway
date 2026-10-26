@@ -37,6 +37,11 @@ static partial class Curriculum
         "rust-slices-buffers" => RustSlicesBuffers(lesson),
         "rust-binary-parser" => RustBinaryParser(lesson),
         "rust-perf-cache-benchmark" => RustPerfCacheBenchmark(lesson),
+        "rust-memory-addresses-raw" => RustMemoryAddressesRaw(lesson),
+        "rust-unsafe-ffi" => RustUnsafeFfi(lesson),
+        "rust-atomics-locks" => RustAtomicsLocks(lesson),
+        "rust-macros" => RustMacros(lesson),
+        "rust-structured-concurrency" => RustStructuredConcurrency(lesson),
         "rust-concurrency-send-sync" => RustConcurrencySendSync(lesson),
         "rust-async-tokio" => RustAsyncTokio(lesson),
         _ => lesson
