@@ -520,7 +520,7 @@ test.describe('public API contract', () => {
     })
   })
 
-  test('Rust multiple-choice exercises are direct questions with selectable answers', async ({ request }) => {
+  test('Rust lessons use graded exercises, and any multiple choice is well-formed', async ({ request }) => {
     const courseResponse = await request.get(`${apiBaseUrl}/api/courses/rust-systems`)
     await expect(courseResponse).toBeOK()
     const summaries = orderedLessons(await courseResponse.json() as Course)
@@ -530,9 +530,11 @@ test.describe('public API contract', () => {
       return await response.json() as Lesson
     }))
 
+    // Every Rust lesson is now authored: graded code, numeric estimates or written deliverables.
+    // Any multiple-choice question that comes back must still be well-formed.
+    for (const lesson of lessons) expect(['Code', 'Numeric', 'Presentation', 'MultipleChoice']).toContain(lesson.exercise.kind)
+    expect(lessons.filter(lesson => lesson.exercise.kind === 'Code').length).toBeGreaterThan(40)
     const questions = lessons.filter(lesson => lesson.exercise.kind === 'MultipleChoice')
-    // No count: the Rust rewrite moves lessons from multiple choice to graded code on purpose.
-    expect(questions.length).toBeGreaterThan(0)
     for (const lesson of questions) {
       expect(lesson.exercise.prompt).toMatch(/\?$/)
       expect(lesson.exercise.choices.length).toBeGreaterThan(1)
