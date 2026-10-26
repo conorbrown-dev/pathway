@@ -23,6 +23,12 @@ static partial class Curriculum
         "rust-errors-panics" => RustErrorsPanics(lesson),
         "rust-iterators-closures" => RustIteratorsClosures(lesson),
         "rust-smart-pointers" => RustSmartPointers(lesson),
+        "rust-cli-args-env" => RustCliArgsEnv(lesson),
+        "rust-stdio-buffering" => RustStdioBuffering(lesson),
+        "rust-os-files-syscalls" => RustOsFilesSyscalls(lesson),
+        "rust-processes-signals" => RustProcessesSignals(lesson),
+        "rust-serde-formats" => RustSerdeFormats(lesson),
+        "rust-cli-project" => RustCliProject(lesson),
         "rust-concurrency-send-sync" => RustConcurrencySendSync(lesson),
         "rust-async-tokio" => RustAsyncTokio(lesson),
         _ => lesson
