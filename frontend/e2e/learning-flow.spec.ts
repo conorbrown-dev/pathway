@@ -778,3 +778,32 @@ test('exposes the learning-experience workspaces for a guest learner', async ({ 
   await expect(page.getByRole('button', { name: 'Save collaboration preferences' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Post to community' })).toBeVisible()
 })
+
+test('math and engineering lessons offer a calculator that can fill a numeric answer', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
+  await page.goto('/courses/precalculus/lessons/math-negative-numbers')
+  await page.getByRole('button', { name: 'Calculator', exact: true }).click()
+  const calculator = page.getByRole('complementary', { name: 'Calculator' })
+  const input = calculator.getByLabel('Expression')
+  await input.fill('−350 − (−90)')
+  await input.press('Enter')
+  await expect(calculator.getByText('= −260')).toBeVisible()
+  // Grouping is made explicit so learners see how their expression was read.
+  await input.fill('2 + 3 × 4')
+  await input.press('Enter')
+  await expect(calculator.getByText('read as 2 + (3 × 4)')).toBeVisible()
+  await calculator.getByRole('button', { name: 'Use in answer' }).first().click()
+  await expect(page.locator('#numeric-answer-math-negative-numbers')).toHaveValue('-260')
+
+  // Engineering courses read SI prefixes and parallel combinations.
+  await page.goto('/courses/electrical-engineering-foundations/lessons/ee-ohms-law')
+  await page.getByRole('button', { name: 'Calculator', exact: true }).click()
+  const eeInput = page.getByRole('complementary', { name: 'Calculator' }).getByLabel('Expression')
+  await eeInput.fill('10k || 10k')
+  await eeInput.press('Enter')
+  await expect(page.getByRole('complementary', { name: 'Calculator' }).getByText('= 5,000')).toBeVisible()
+
+  // Courses without numeric work don't show it.
+  await page.goto('/courses/git-cli')
+  await expect(page.getByRole('button', { name: 'Calculator', exact: true })).toHaveCount(0)
+})

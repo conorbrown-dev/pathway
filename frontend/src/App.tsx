@@ -5,6 +5,7 @@ import { ExperienceHub } from "./ExperienceHub";
 import { getAnonymousLearnerId, trackActivity, trackActivityOnce } from "./analytics";
 import { authConfigured, initializeAuth, login, logout as signOut, refreshToken } from "./auth";
 import { parseLessonBody, parseLessonInline } from "./lessonBody";
+import { CalculatorButton, CalculatorPanel, calculatorProfileFor } from "./calculator/Calculator";
 import {
   ArrowLeft,
   ArrowRight,
@@ -237,6 +238,7 @@ function App() {
     () => !localStorage.getItem("pathway-onboarding-complete"),
   );
   const [workspace, setWorkspace] = useState<Workspace>("learn");
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
   useEffect(() => {
     trackActivityOnce("session_start", { eventType: "session_start" });
   }, []);
@@ -587,8 +589,24 @@ function App() {
         </div>
       </div>
     );
+  const calculatorProfile = calculatorProfileFor(course?.languageId);
   return (
     <div className="app-dark min-h-screen bg-canvas lg:flex">
+      {calculatorProfile && (
+        <CalculatorPanel
+          open={calculatorOpen}
+          onClose={() => setCalculatorOpen(false)}
+          siPrefixes={calculatorProfile.siPrefixes}
+          onUseValue={
+            workspace === "learn" && lesson.exercise.kind === "Numeric"
+              ? (value) => {
+                  setAnswer(value);
+                  notify("Answer filled in. Check the unit, then press Check answer.");
+                }
+              : undefined
+          }
+        />
+      )}
       <Sidebar
         course={course}
         current={lesson.slug}
@@ -618,6 +636,9 @@ function App() {
             </span>
           </p>
           <div className="flex items-center gap-3">
+            {calculatorProfile && (
+              <CalculatorButton open={calculatorOpen} onToggle={() => setCalculatorOpen((open) => !open)} />
+            )}
             <a
               href={lesson.version.sourceUrl}
               target="_blank"
