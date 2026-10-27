@@ -23,6 +23,7 @@ const solutionsDir = fileURLToPath(new URL('../test/rust-solutions/', import.met
 const solutions = readdirSync(solutionsDir).filter(name => name.endsWith('.rs')).sort()
 let failures = 0
 const timings = []
+const compileFailures = []
 
 for (const name of solutions) {
   const slug = name.split('.')[0]
@@ -51,8 +52,13 @@ for (const name of solutions) {
     if (process.env.GITHUB_ACTIONS) console.log(`::error title=${name}::${ok ? 'too slow' : 'unexpected result'} (${elapsed} ms): ${output.replace(/\s+/g, ' ').slice(0, 300)}`)
   }
   timings.push(`${name} ${elapsed} ms`)
+  // A *.fail.rs that doesn't compile proves nothing about the grader's checks; list them so a
+  // reviewer can confirm each one is meant to be a compile error (e.g. a borrow or no_std failure).
+  if (!shouldPass && /^error(\[E\d{4}\])?: /m.test(output)) compileFailures.push(name)
 }
 
 console.log(`${solutions.length - failures}/${solutions.length} fixture checks passed`)
+console.log(`fail.rs files that fail to compile: ${compileFailures.join(', ') || 'none'}`)
+if (process.env.GITHUB_ACTIONS) console.log(`::notice title=Expected failures that are compile errors::${compileFailures.join(', ') || 'none'}`)
 if (process.env.GITHUB_ACTIONS) console.log(`::notice title=Rust fixtures in image::${solutions.length - failures}/${solutions.length} passed. ${timings.join(', ')}`)
 process.exit(failures === 0 ? 0 : 1)

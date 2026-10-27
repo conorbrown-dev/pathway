@@ -1487,6 +1487,325 @@ fn main() {
         tests: 5,
         runtime: 'rust',
       }
+    case 'rust-web-axum':
+      return {
+        files: { 'main.rs': `${code}
+
+#[derive(Clone, serde::Serialize)]
+struct Course {
+    id: String,
+    title: String,
+}
+
+fn catalog() -> Vec<Course> {
+    vec![
+        Course { id: String::from("rust"), title: String::from("Rust Systems") },
+        Course { id: String::from("sql"), title: String::from("SQLite") },
+    ]
+}
+
+async fn call(app: &axum::Router, method: &str, uri: &str, headers: &[(&str, &str)], body: &str) -> (u16, axum::http::HeaderMap, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let mut request = axum::http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app.clone().oneshot(request.body(axum::body::Body::from(body.to_string())).unwrap()).await.unwrap();
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap_or_else(|_| panic!("expected a JSON body, got {text:?}"))
+}
+
+const JSON: (&str, &str) = ("content-type", "application/json");
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let app = app();
+    let (status, _, body) = call(&app, "GET", "/health", &[], "").await;
+    assert_eq!((status, body.as_str()), (200, "ok"), "GET /health returns 200 with the text ok");
+    let (status, headers, body) = call(&app, "GET", "/courses/rust", &[], "").await;
+    assert_eq!(status, 200, "a known course is 200");
+    assert_eq!(headers.get("content-type").map(|v| v.to_str().unwrap()), Some("application/json"), "courses are returned as JSON");
+    assert_eq!(json(&body), serde_json::json!({"id": "rust", "title": "Rust Systems"}), "the course is serialized from the catalog");
+    let (status, _, _) = call(&app, "GET", "/courses/cobol", &[], "").await;
+    assert_eq!(status, 404, "an unknown course is 404 Not Found");
+    let (status, _, body) = call(&app, "POST", "/echo", &[JSON], r#"{"hello": [1, 2, 3]}"#).await;
+    assert_eq!((status, json(&body)), (200, serde_json::json!({"hello": [1, 2, 3]})), "POST /echo returns the JSON it received");
+    let (status, _, _) = call(&app, "POST", "/echo", &[], r#"{"hello": 1}"#).await;
+    assert_eq!(status, 415, "a JSON endpoint rejects a body without a JSON content type (415)");
+    let (status, _, _) = call(&app, "POST", "/echo", &[JSON], "{not json").await;
+    assert_eq!(status, 400, "malformed JSON is 400");
+    let (status, _, _) = call(&app, "POST", "/health", &[], "").await;
+    assert_eq!(status, 405, "the wrong method on a known path is 405");
+    let (status, _, _) = call(&app, "GET", "/nowhere", &[], "").await;
+    assert_eq!(status, 404, "an unknown path is 404");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-api-contracts':
+      return {
+        files: { 'main.rs': `${code}
+
+async fn call(app: &axum::Router, method: &str, uri: &str, headers: &[(&str, &str)], body: &str) -> (u16, axum::http::HeaderMap, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let mut request = axum::http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app.clone().oneshot(request.body(axum::body::Body::from(body.to_string())).unwrap()).await.unwrap();
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap_or_else(|_| panic!("expected a JSON body, got {text:?}"))
+}
+
+const JSON: (&str, &str) = ("content-type", "application/json");
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let app = app(std::sync::Arc::new(std::sync::Mutex::new(Store::default())));
+    let new = r#"{"learner": "ada", "course": "rust"}"#;
+    let (status, headers, body) = call(&app, "POST", "/v1/enrollments", &[JSON, ("idempotency-key", "k-1")], new).await;
+    assert_eq!(status, 201, "creating an enrollment is 201 Created");
+    assert_eq!(headers.get("location").map(|v| v.to_str().unwrap()), Some("/v1/enrollments/1"), "201 responses carry a Location header");
+    assert_eq!(json(&body), serde_json::json!({"id": 1, "learner": "ada", "course": "rust"}), "the created enrollment is returned");
+    let (status, headers, body) = call(&app, "POST", "/v1/enrollments", &[JSON, ("idempotency-key", "k-1")], new).await;
+    assert_eq!((status, json(&body)["id"].clone()), (201, serde_json::json!(1)), "retrying with the same Idempotency-Key returns the original result");
+    assert_eq!(headers.get("location").map(|v| v.to_str().unwrap()), Some("/v1/enrollments/1"), "the retry points at the same resource");
+    let (status, headers, body) = call(&app, "POST", "/v1/enrollments", &[JSON], new).await;
+    assert_eq!(status, 400, "a missing Idempotency-Key is 400");
+    assert_eq!(headers.get("content-type").map(|v| v.to_str().unwrap()), Some("application/problem+json"), "errors use application/problem+json");
+    assert_eq!(json(&body)["status"], serde_json::json!(400), "the problem document repeats the status");
+    let (status, _, body) = call(&app, "POST", "/v1/enrollments", &[JSON, ("idempotency-key", "k-2")], r#"{"learner": " ", "course": "rust"}"#).await;
+    assert_eq!((status, json(&body)["status"].clone()), (422, serde_json::json!(422)), "a blank learner is 422 with a problem document");
+    for n in 2..=60 {
+        let body = format!(r#"{{"learner": "l{n}", "course": "rust"}}"#);
+        let key = format!("key-{n}");
+        call(&app, "POST", "/v1/enrollments", &[JSON, ("idempotency-key", &key)], &body).await;
+    }
+    let (status, _, body) = call(&app, "GET", "/v1/enrollments?limit=2", &[], "").await;
+    let page = json(&body);
+    assert_eq!((status, page["items"].as_array().unwrap().len(), page["next"].clone()), (200, 2, serde_json::json!(2)), "limit=2 returns two items and a cursor to continue after");
+    let (_, _, body) = call(&app, "GET", "/v1/enrollments?limit=2&after=2", &[], "").await;
+    assert_eq!(json(&body)["items"][0]["id"], serde_json::json!(3), "after=2 continues from the next item");
+    let (_, _, body) = call(&app, "GET", "/v1/enrollments", &[], "").await;
+    assert_eq!(json(&body)["items"].as_array().unwrap().len(), 20, "the default page size is 20");
+    let (_, _, body) = call(&app, "GET", "/v1/enrollments?limit=1000", &[], "").await;
+    assert_eq!(json(&body)["items"].as_array().unwrap().len(), 50, "page sizes are capped at 50 however many are asked for");
+    let (_, _, body) = call(&app, "GET", "/v1/enrollments?limit=50&after=50", &[], "").await;
+    assert_eq!((json(&body)["items"].as_array().unwrap().len(), json(&body)["next"].clone()), (10, serde_json::Value::Null), "the last page has no next cursor");
+    let (status, _, _) = call(&app, "GET", "/v1/enrollments?limit=0", &[], "").await;
+    assert_eq!(status, 422, "limit=0 is rejected");
+    let (status, _, body) = call(&app, "GET", "/v1/enrollments/1", &[], "").await;
+    assert_eq!((status, json(&body)["learner"].clone()), (200, serde_json::json!("ada")), "an enrollment can be fetched by id");
+    let (status, headers, _) = call(&app, "GET", "/v1/enrollments/999", &[], "").await;
+    assert_eq!((status, headers.get("content-type").map(|v| v.to_str().unwrap().to_string())), (404, Some(String::from("application/problem+json"))), "an unknown id is 404 with a problem document");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-extractors-errors':
+      return {
+        files: { 'main.rs': `${code}
+
+async fn call(app: &axum::Router, method: &str, uri: &str, headers: &[(&str, &str)], body: &str) -> (u16, axum::http::HeaderMap, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let mut request = axum::http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app.clone().oneshot(request.body(axum::body::Body::from(body.to_string())).unwrap()).await.unwrap();
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap_or_else(|_| panic!("expected a JSON body, got {text:?}"))
+}
+
+const JSON: (&str, &str) = ("content-type", "application/json");
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    assert_eq!(Email::try_from(String::from("  Ada@Example.COM ")), Ok(Email(String::from("ada@example.com"))), "emails are trimmed and lowercased");
+    for bad in ["", "ada", "@example.com", "ada@", "ada@@example.com", "ada@example", "ada@.com"] {
+        assert!(matches!(Email::try_from(bad.to_string()), Err(ApiError::Validation(_))), "{bad:?} is not a valid email");
+    }
+    let app = app(std::sync::Arc::new(std::sync::Mutex::new(Vec::new())));
+    let (status, _, body) = call(&app, "POST", "/users", &[JSON], r#"{"email": "Ada@Example.com"}"#).await;
+    assert_eq!((status, json(&body)), (201, serde_json::json!({"id": 1, "email": "ada@example.com"})), "a valid user is created");
+    let (status, headers, body) = call(&app, "POST", "/users", &[JSON], r#"{"email": "ada@example.com"}"#).await;
+    assert_eq!(status, 409, "a duplicate email is 409 Conflict");
+    assert_eq!(headers.get("content-type").map(|v| v.to_str().unwrap()), Some("application/problem+json"), "conflicts are problem documents");
+    assert_eq!(json(&body)["status"], serde_json::json!(409), "the problem document repeats the status");
+    let (status, _, body) = call(&app, "POST", "/users", &[JSON], r#"{"email": "not-an-email"}"#).await;
+    assert_eq!((status, json(&body)["status"].clone()), (422, serde_json::json!(422)), "an invalid email is 422");
+    let (status, headers, body) = call(&app, "POST", "/users", &[JSON], "{broken").await;
+    assert_eq!(status, 400, "malformed JSON is 400");
+    assert_eq!(headers.get("content-type").map(|v| v.to_str().unwrap()), Some("application/problem+json"), "even extractor failures are returned as problem documents");
+    assert!(json(&body)["detail"].as_str().is_some_and(|detail| !detail.is_empty()), "the problem detail explains the rejection");
+    let (status, headers, _) = call(&app, "GET", "/users/abc", &[], "").await;
+    assert_eq!((status, headers.get("content-type").map(|v| v.to_str().unwrap().to_string())), (400, Some(String::from("application/problem+json"))), "a non-numeric id is 400 as a problem document");
+    let (status, _, body) = call(&app, "GET", "/users/1", &[], "").await;
+    assert_eq!((status, json(&body)["email"].clone()), (200, serde_json::json!("ada@example.com")), "users can be fetched");
+    let (status, _, body) = call(&app, "GET", "/users/42", &[], "").await;
+    assert_eq!((status, json(&body)["status"].clone()), (404, serde_json::json!(404)), "a missing user is 404");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-database-transactions':
+      return {
+        files: { 'main.rs': `${code}
+
+fn count(conn: &rusqlite::Connection, sql: &str) -> i64 {
+    conn.query_row(sql, [], |row| row.get(0)).unwrap()
+}
+
+fn main() {
+    let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+    migrate(&conn).unwrap();
+    migrate(&conn).expect("running migrations twice is safe");
+    assert_eq!(count(&conn, "PRAGMA user_version"), 2, "migrations record the schema version");
+    let ada = open_account(&conn, "ada", 100).unwrap();
+    let grace = open_account(&conn, "grace", 50).unwrap();
+    assert_ne!(ada, grace, "each account gets its own id");
+    assert!(open_account(&conn, "ada", 5).is_err(), "owners are unique");
+    assert!(open_account(&conn, "debt", -1).is_err(), "the schema refuses negative balances");
+    let tricky = "o'brien'); DROP TABLE ledger; --";
+    open_account(&conn, tricky, 7).expect("names are passed as parameters, so quotes are just data");
+    assert_eq!(balance(&conn, tricky).unwrap(), Some(7), "the tricky name is stored exactly");
+    assert_eq!(count(&conn, "SELECT count(*) FROM sqlite_master WHERE name = 'ledger'"), 1, "no SQL from data was executed");
+    assert_eq!(balance(&conn, "nobody").unwrap(), None, "a missing owner has no balance");
+
+    assert_eq!(transfer(&mut conn, "ada", "grace", 30), Ok(()), "a valid transfer succeeds");
+    assert_eq!((balance(&conn, "ada").unwrap(), balance(&conn, "grace").unwrap()), (Some(70), Some(80)), "both balances change");
+    assert_eq!(count(&conn, "SELECT count(*) FROM ledger"), 1, "the transfer is recorded in the ledger");
+    assert_eq!(transfer(&mut conn, "ada", "grace", 500), Err(TransferError::InsufficientFunds), "overdrawing is refused");
+    assert_eq!(transfer(&mut conn, "ada", "nobody", 10), Err(TransferError::NoSuchAccount), "an unknown recipient is refused");
+    assert_eq!(transfer(&mut conn, "nobody", "ada", 10), Err(TransferError::NoSuchAccount), "an unknown sender is refused");
+    assert_eq!(transfer(&mut conn, "ada", "grace", 0), Err(TransferError::InvalidAmount), "zero is not a transfer");
+    assert_eq!(transfer(&mut conn, "ada", "grace", -5), Err(TransferError::InvalidAmount), "negative amounts are not transfers");
+    assert_eq!((balance(&conn, "ada").unwrap(), balance(&conn, "grace").unwrap()), (Some(70), Some(80)), "failed transfers change nothing: all or nothing");
+    assert_eq!(count(&conn, "SELECT count(*) FROM ledger"), 1, "failed transfers write no ledger rows");
+    assert_eq!(count(&conn, "SELECT sum(balance) FROM accounts"), 157, "money is never created or destroyed");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        // pathway-rustc links the image's prebuilt rusqlite (with SQLite compiled in).
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-auth-security':
+      return {
+        files: { 'main.rs': `${code}
+
+#[derive(Clone)]
+struct Principal {
+    user: String,
+    admin: bool,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct Note {
+    id: u64,
+    owner: String,
+    text: String,
+}
+
+struct AppState {
+    tokens: std::collections::HashMap<String, Principal>,
+    notes: std::sync::Mutex<std::collections::HashMap<u64, Note>>,
+}
+
+async fn call(app: &axum::Router, method: &str, uri: &str, headers: &[(&str, &str)], body: &str) -> (u16, axum::http::HeaderMap, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let mut request = axum::http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app.clone().oneshot(request.body(axum::body::Body::from(body.to_string())).unwrap()).await.unwrap();
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap_or_else(|_| panic!("expected a JSON body, got {text:?}"))
+}
+
+const JSON: (&str, &str) = ("content-type", "application/json");
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let tokens = [("t-ada", "ada", false), ("t-lin", "lin", false), ("t-root", "root", true)]
+        .into_iter()
+        .map(|(token, user, admin)| (token.to_string(), Principal { user: user.to_string(), admin }))
+        .collect();
+    let notes = [(1, "ada", "ada's plan"), (2, "lin", "lin's draft")]
+        .into_iter()
+        .map(|(id, owner, text)| (id, Note { id, owner: owner.to_string(), text: text.to_string() }))
+        .collect();
+    let app = app(std::sync::Arc::new(AppState { tokens, notes: std::sync::Mutex::new(notes) }));
+    let bearer = |token: &'static str| ("authorization", match token { "t-ada" => "Bearer t-ada", "t-lin" => "Bearer t-lin", "t-root" => "Bearer t-root", _ => "Bearer forged" });
+
+    let (status, headers, _) = call(&app, "GET", "/notes/1", &[], "").await;
+    assert_eq!(status, 401, "no credentials is 401 Unauthorized");
+    assert_eq!(headers.get("www-authenticate").map(|v| v.to_str().unwrap()), Some("Bearer"), "a 401 says which scheme to use");
+    let (status, headers, _) = call(&app, "GET", "/notes/1", &[bearer("bad")], "").await;
+    assert_eq!((status, headers.contains_key("www-authenticate")), (401, true), "an unknown token is 401, not 403");
+    let (status, _, _) = call(&app, "GET", "/notes/1", &[("authorization", "Basic YWRhOnB3")], "").await;
+    assert_eq!(status, 401, "a different scheme is not accepted");
+    let (status, _, body) = call(&app, "GET", "/notes/1", &[bearer("t-ada")], "").await;
+    assert_eq!((status, json(&body)["text"].clone()), (200, serde_json::json!("ada's plan")), "owners read their notes");
+    let (status, _, _) = call(&app, "GET", "/notes/1", &[bearer("t-lin")], "").await;
+    assert_eq!(status, 404, "another user's note is 404, so its existence isn't revealed");
+    let (status, _, _) = call(&app, "GET", "/notes/2", &[bearer("t-root")], "").await;
+    assert_eq!(status, 200, "an admin can read any note");
+    let (status, _, _) = call(&app, "DELETE", "/notes/2", &[bearer("t-root")], "").await;
+    assert_eq!(status, 403, "an admin who can see a note but may not delete it gets 403");
+    let (status, _, _) = call(&app, "DELETE", "/notes/2", &[bearer("t-ada")], "").await;
+    assert_eq!(status, 404, "a user who can't see the note gets 404 on delete too");
+    let (status, _, _) = call(&app, "DELETE", "/notes/2", &[], "").await;
+    assert_eq!(status, 401, "deleting without credentials is 401");
+    let (status, _, _) = call(&app, "DELETE", "/notes/2", &[bearer("t-lin")], "").await;
+    assert_eq!(status, 204, "owners delete their own notes");
+    let (status, _, _) = call(&app, "GET", "/notes/2", &[bearer("t-lin")], "").await;
+    assert_eq!(status, 404, "a deleted note is gone");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
     case 'rust-structs-enums':
       return {
         files: { 'main.rs': `${code}
