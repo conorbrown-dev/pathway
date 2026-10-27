@@ -1806,6 +1806,362 @@ async fn main() {
         tests: 4,
         runtime: 'rust',
       }
+    case 'rust-testing-integration':
+      return {
+        files: { 'main.rs': `${code}
+
+trait Inventory {
+    fn reserve(&mut self, sku: &str, quantity: u32) -> bool;
+    fn release(&mut self, sku: &str, quantity: u32);
+}
+
+trait Payments {
+    fn charge(&mut self, cents: u64) -> Result<String, String>;
+}
+
+trait Clock {
+    fn now(&self) -> u64;
+}
+
+struct Line {
+    sku: String,
+    quantity: u32,
+    unit_cents: u64,
+}
+
+#[derive(Default)]
+struct FakeInventory {
+    stock: std::collections::HashMap<String, u32>,
+    log: Vec<String>,
+}
+
+impl Inventory for FakeInventory {
+    fn reserve(&mut self, sku: &str, quantity: u32) -> bool {
+        self.log.push(format!("reserve {sku} {quantity}"));
+        match self.stock.get_mut(sku) {
+            Some(available) if *available >= quantity => {
+                *available -= quantity;
+                true
+            }
+            _ => false,
+        }
+    }
+    fn release(&mut self, sku: &str, quantity: u32) {
+        self.log.push(format!("release {sku} {quantity}"));
+        *self.stock.entry(sku.to_string()).or_insert(0) += quantity;
+    }
+}
+
+struct FakePayments {
+    decline: bool,
+    charged: Vec<u64>,
+}
+
+impl Payments for FakePayments {
+    fn charge(&mut self, cents: u64) -> Result<String, String> {
+        self.charged.push(cents);
+        if self.decline { Err(String::from("card declined")) } else { Ok(format!("pay-{}", self.charged.len())) }
+    }
+}
+
+struct FixedClock(u64);
+
+impl Clock for FixedClock {
+    fn now(&self) -> u64 {
+        self.0
+    }
+}
+
+fn line(sku: &str, quantity: u32, unit_cents: u64) -> Line {
+    Line { sku: sku.to_string(), quantity, unit_cents }
+}
+
+fn inventory(items: &[(&str, u32)]) -> FakeInventory {
+    FakeInventory { stock: items.iter().map(|(sku, n)| (sku.to_string(), *n)).collect(), log: Vec::new() }
+}
+
+fn main() {
+    let clock = FixedClock(1_700_000_000);
+    let mut stock = inventory(&[("mug", 5), ("tee", 2)]);
+    let mut payments = FakePayments { decline: false, charged: Vec::new() };
+    let receipt = checkout(&[line("mug", 2, 1_250), line("tee", 1, 2_000)], &mut stock, &mut payments, &clock);
+    assert_eq!(receipt, Ok(Receipt { payment_id: String::from("pay-1"), total_cents: 4_500, at: 1_700_000_000 }), "a successful checkout charges the total and stamps the clock's time");
+    assert_eq!((stock.stock["mug"], stock.stock["tee"]), (3, 1), "stock is reserved");
+
+    let mut stock = inventory(&[("mug", 5)]);
+    let mut payments = FakePayments { decline: false, charged: Vec::new() };
+    assert_eq!(checkout(&[], &mut stock, &mut payments, &clock), Err(CheckoutError::EmptyCart), "an empty cart is refused");
+    assert!(payments.charged.is_empty() && stock.log.is_empty(), "an empty cart touches nothing");
+
+    let mut stock = inventory(&[("mug", 5), ("tee", 0)]);
+    let mut payments = FakePayments { decline: false, charged: Vec::new() };
+    let result = checkout(&[line("mug", 2, 1_250), line("tee", 1, 2_000)], &mut stock, &mut payments, &clock);
+    assert_eq!(result, Err(CheckoutError::OutOfStock(String::from("tee"))), "a missing item is reported by sku");
+    assert_eq!(stock.stock["mug"], 5, "items reserved before the shortage are released again");
+    assert!(payments.charged.is_empty(), "nothing is charged when stock is short");
+
+    let mut stock = inventory(&[("mug", 5)]);
+    let mut payments = FakePayments { decline: true, charged: Vec::new() };
+    let result = checkout(&[line("mug", 3, 1_000)], &mut stock, &mut payments, &clock);
+    assert_eq!(result, Err(CheckoutError::PaymentDeclined(String::from("card declined"))), "a declined payment is reported with its reason");
+    assert_eq!(stock.stock["mug"], 5, "a declined payment releases the reserved stock");
+    assert_eq!(stock.log, ["reserve mug 3", "release mug 3"], "reserve, charge, then release on failure");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-observability':
+      return {
+        files: { 'main.rs': `${code}
+
+async fn call(app: &axum::Router, method: &str, uri: &str, headers: &[(&str, &str)], body: &str) -> (u16, axum::http::HeaderMap, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let mut request = axum::http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app.clone().oneshot(request.body(axum::body::Body::from(body.to_string())).unwrap()).await.unwrap();
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap_or_else(|_| panic!("expected a JSON body, got {text:?}"))
+}
+
+const JSON: (&str, &str) = ("content-type", "application/json");
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let metrics = std::sync::Arc::new(Metrics::default());
+    let app = axum::Router::new()
+        .route("/courses/{id}", axum::routing::get(|| async { "course" }))
+        .route("/health", axum::routing::get(|| async { "ok" }))
+        .layer(axum::middleware::from_fn_with_state(metrics.clone(), track));
+    for uri in ["/courses/1", "/courses/2", "/courses/3", "/health", "/nowhere"] {
+        call(&app, "GET", uri, &[], "").await;
+    }
+    let text = metrics.render();
+    assert!(text.contains("http_requests_total{route=\\"/courses/{id}\\",status=\\"200\\"} 3\\n"), "requests are labelled by route template, not raw URL, so /courses/1, 2 and 3 share one series:\\n{text}");
+    assert!(text.contains("http_requests_total{route=\\"/health\\",status=\\"200\\"} 1\\n"), "each route has its own series:\\n{text}");
+    assert!(text.contains("route=\\"unmatched\\",status=\\"404\\"} 1"), "unknown paths are counted under one unmatched label:\\n{text}");
+    assert!(!text.contains("/courses/1"), "raw ids must never become labels:\\n{text}");
+    assert!(text.contains("http_request_duration_ms_count 5\\n"), "every request is timed:\\n{text}");
+
+    let manual = Metrics::default();
+    for duration in [3, 20, 20, 400, 9_000] {
+        manual.record("/x", 200, duration);
+    }
+    let text = manual.render();
+    for (bound, expected) in [("5", 1), ("25", 3), ("100", 3), ("500", 4), ("2500", 4), ("+Inf", 5)] {
+        let line = format!("http_request_duration_ms_bucket{{le=\\"{bound}\\"}} {expected}\\n");
+        assert!(text.contains(&line), "histogram buckets are cumulative: expected {line:?} in\\n{text}");
+    }
+    assert!(text.contains("http_request_duration_ms_sum 9443\\n") && text.contains("http_request_duration_ms_count 5\\n"), "sum and count are reported:\\n{text}");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-performance-profiling':
+      return {
+        files: { 'main.rs': `${code}
+
+trait CourseDb {
+    fn get(&self, id: u64) -> Option<String>;
+    fn get_many(&self, ids: &[u64]) -> Vec<(u64, String)>;
+}
+
+struct CountingDb {
+    queries: std::cell::Cell<usize>,
+}
+
+impl CourseDb for CountingDb {
+    fn get(&self, id: u64) -> Option<String> {
+        self.queries.set(self.queries.get() + 1);
+        (id % 10 != 0).then(|| format!("course {id}"))
+    }
+    fn get_many(&self, ids: &[u64]) -> Vec<(u64, String)> {
+        self.queries.set(self.queries.get() + 1);
+        let mut rows: Vec<(u64, String)> = ids.iter().filter(|id| *id % 10 != 0).map(|id| (*id, format!("course {id}"))).collect();
+        rows.reverse(); // a database returns rows in whatever order it likes
+        rows
+    }
+}
+
+fn main() {
+    let mut samples: Vec<u64> = (1..=100).rev().collect();
+    assert_eq!(percentile(&mut samples, 50.0), Some(50), "p50 of 1..=100");
+    assert_eq!(percentile(&mut samples, 99.0), Some(99), "p99 of 1..=100");
+    assert_eq!(percentile(&mut samples, 100.0), Some(100), "p100 is the maximum");
+    let mut small = vec![120, 15, 30, 900, 45];
+    assert_eq!(percentile(&mut small, 50.0), Some(45), "nearest rank: the median of five values is the third");
+    assert_eq!(percentile(&mut small, 90.0), Some(900), "p90 of five values is the largest");
+    assert_eq!(percentile(&mut small, 0.0), Some(15), "p0 is the minimum");
+    assert_eq!(percentile(&mut [], 50.0), None, "no samples, no percentile");
+    assert_eq!(percentile(&mut [1, 2], 150.0), None, "percentiles above 100 are invalid");
+    assert_eq!(required_workers(200.0, 50.0), 10, "200 req/s at 50 ms each keeps 10 requests in flight");
+    assert_eq!(required_workers(1_000.0, 120.0), 120, "Little's law");
+    assert_eq!(required_workers(30.0, 25.0), 1, "a fraction of a worker rounds up");
+    let db = CountingDb { queries: std::cell::Cell::new(0) };
+    let ids: Vec<u64> = (1..=25).collect();
+    let titles = load_titles(&ids, &db);
+    assert_eq!(titles.len(), 23, "ids 10 and 20 don't exist and are skipped");
+    assert_eq!((titles[0].as_str(), titles[22].as_str()), ("course 1", "course 25"), "titles come back in the requested order");
+    assert_eq!(db.queries.get(), 1, "load_titles must use one batched query, not one per id (it made {} queries)", db.queries.get());
+    let db = CountingDb { queries: std::cell::Cell::new(0) };
+    assert!(load_titles(&[], &db).is_empty() && db.queries.get() == 0, "no ids, no query");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-resilience-queues':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    assert_eq!(backoff_ms(0, 100, 10_000, 1.0), 100, "attempt 0 waits up to the base delay");
+    assert_eq!(backoff_ms(3, 100, 10_000, 1.0), 800, "the ceiling doubles each attempt");
+    assert_eq!(backoff_ms(3, 100, 10_000, 0.5), 400, "full jitter scales the ceiling by a random fraction");
+    assert_eq!(backoff_ms(10, 100, 10_000, 1.0), 10_000, "delays are capped");
+    assert_eq!(backoff_ms(70, 100, 10_000, 1.0), 10_000, "huge attempt numbers don't overflow");
+    assert_eq!(backoff_ms(60, 1_000, 30_000, 0.25), 7_500, "a shift that overflows u64 still saturates at the cap");
+
+    let mut breaker = CircuitBreaker::new(3, 1_000);
+    assert!(breaker.allow(0), "a closed breaker allows calls");
+    breaker.record_failure(10);
+    breaker.record_failure(20);
+    assert_eq!(breaker.state(), BreakerState::Closed, "two failures are under the threshold");
+    breaker.record_success();
+    breaker.record_failure(30);
+    breaker.record_failure(40);
+    assert_eq!(breaker.state(), BreakerState::Closed, "a success resets the failure count");
+    breaker.record_failure(50);
+    assert_eq!(breaker.state(), BreakerState::Open, "three failures in a row open the breaker");
+    assert!(!breaker.allow(500), "an open breaker fails fast during the cooldown");
+    assert!(breaker.allow(1_050), "after the cooldown one trial call is allowed");
+    assert_eq!(breaker.state(), BreakerState::HalfOpen, "the trial happens half-open");
+    assert!(!breaker.allow(1_060), "only one trial call at a time");
+    breaker.record_failure(1_070);
+    assert_eq!(breaker.state(), BreakerState::Open, "a failed trial reopens immediately");
+    assert!(!breaker.allow(1_500), "and restarts the cooldown");
+    assert!(breaker.allow(2_100), "the next trial after a new cooldown");
+    breaker.record_success();
+    assert_eq!(breaker.state(), BreakerState::Closed, "a successful trial closes the breaker");
+
+    let mut consumer = Consumer::new(3);
+    let mut calls = 0;
+    assert_eq!(consumer.deliver("job-1", &mut || { calls += 1; if calls < 2 { Err(String::from("timeout")) } else { Ok(()) } }), Outcome::Delivered { attempts: 2 }, "a transient failure is retried");
+    assert_eq!(consumer.deliver("job-1", &mut || panic!("a duplicate must not run the handler")), Outcome::Duplicate, "a redelivered message is recognised by id and skipped");
+    let mut attempts = 0;
+    let outcome = consumer.deliver("job-2", &mut || { attempts += 1; Err(format!("bad payload {attempts}")) });
+    assert_eq!(outcome, Outcome::DeadLettered { attempts: 3, last_error: String::from("bad payload 3") }, "after max attempts the message is dead-lettered with the last error");
+    assert_eq!(consumer.dead_letters, ["job-2"], "the dead-letter queue keeps the message for a person to inspect");
+    let mut ran = false;
+    assert_eq!(consumer.deliver("job-2", &mut || { ran = true; Ok(()) }), Outcome::Delivered { attempts: 1 }, "a dead-lettered job can be replayed once fixed");
+    assert!(ran, "the replay ran the handler");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-containers-delivery':
+      return {
+        files: { 'main.rs': `${code}
+
+async fn call(app: &axum::Router, method: &str, uri: &str, headers: &[(&str, &str)], body: &str) -> (u16, axum::http::HeaderMap, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let mut request = axum::http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app.clone().oneshot(request.body(axum::body::Body::from(body.to_string())).unwrap()).await.unwrap();
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap_or_else(|_| panic!("expected a JSON body, got {text:?}"))
+}
+
+const JSON: (&str, &str) = ("content-type", "application/json");
+
+fn env(pairs: &[(&str, &str)]) -> std::collections::HashMap<String, String> {
+    pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+}
+
+#[tokio::main]
+async fn main() {
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(6));
+        eprintln!("The test timed out: the server never finished shutting down.");
+        std::process::exit(1);
+    });
+    use std::sync::atomic::Ordering;
+    let secret = "postgres://app:hunter2@db/prod";
+    assert_eq!(load_config(&env(&[("PORT", "8080"), ("DATABASE_URL", secret)])), Ok(Config { port: 8080, database_url: secret.to_string(), log_level: String::from("info") }), "valid settings load, with LOG_LEVEL defaulting to info");
+    let problems = load_config(&env(&[("PORT", "eighty"), ("LOG_LEVEL", "loud")])).expect_err("bad settings are refused");
+    assert_eq!(problems.len(), 3, "every problem is reported at once, not just the first: {problems:?}");
+    assert!(problems.iter().any(|p| p.contains("PORT")) && problems.iter().any(|p| p.contains("DATABASE_URL")) && problems.iter().any(|p| p.contains("LOG_LEVEL")), "each problem names its variable: {problems:?}");
+    let problems = load_config(&env(&[("PORT", "0"), ("DATABASE_URL", "mysql://root:hunter2@db")])).expect_err("port 0 is refused");
+    assert!(problems.iter().all(|p| !p.contains("hunter2")), "error messages never include secret values: {problems:?}");
+
+    let health = std::sync::Arc::new(Health { ready: std::sync::atomic::AtomicBool::new(false), draining: std::sync::atomic::AtomicBool::new(false) });
+    let router = app(health.clone());
+    assert_eq!(call(&router, "GET", "/livez", &[], "").await.0, 200, "liveness is 200 while the process runs");
+    assert_eq!(call(&router, "GET", "/readyz", &[], "").await.0, 503, "not ready until startup work is done");
+    health.ready.store(true, Ordering::SeqCst);
+    assert_eq!(call(&router, "GET", "/readyz", &[], "").await.0, 200, "ready once startup completes");
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let router = app(health.clone()).route("/slow", axum::routing::get(|| async {
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        "done"
+    }));
+    let (stop, shutdown) = tokio::sync::oneshot::channel();
+    let server = tokio::spawn(serve_until(listener, router, health.clone(), shutdown));
+    let client = tokio::spawn(async move {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+        stream.write_all(b"GET /slow HTTP/1.1\\r\\nHost: test\\r\\nConnection: close\\r\\n\\r\\n").await.unwrap();
+        let mut reply = Vec::new();
+        let _ = stream.read_to_end(&mut reply).await;
+        String::from_utf8_lossy(&reply).into_owned()
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    stop.send(()).unwrap();
+    let signalled = std::time::Instant::now();
+    tokio::time::timeout(std::time::Duration::from_secs(3), server).await.expect("serve_until returns once in-flight requests finish").unwrap().unwrap();
+    let waited = signalled.elapsed();
+    assert!(waited >= std::time::Duration::from_millis(150), "serve_until returned {waited:?} after the signal, before the in-flight request finished: wait for it, or the process exits and cuts it off");
+    let reply = client.await.unwrap();
+    assert!(reply.starts_with("HTTP/1.1 200") && reply.ends_with("done"), "a request already in progress at shutdown still completes: got {reply:?}");
+    assert!(health.draining.load(Ordering::SeqCst), "shutdown marks the service as draining");
+    assert_eq!(call(&app(health.clone()), "GET", "/readyz", &[], "").await.0, 503, "a draining service reports not ready, so load balancers stop sending traffic");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
     case 'rust-structs-enums':
       return {
         files: { 'main.rs': `${code}
