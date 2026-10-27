@@ -200,6 +200,22 @@ public class CurriculumInvariantTests
     }
 
     [Fact]
+    public void Every_Rust_lesson_is_authored()
+    {
+        // No Rust lesson may fall back to the one-line template any more.
+        var templated = LessonsOf("rust-systems")
+            .Where(lesson => lesson.Body.Contains("Apply it in a small project, explain the tradeoff", StringComparison.Ordinal) || lesson.Subtitle == lesson.Concept)
+            .Select(lesson => lesson.Slug)
+            .ToArray();
+        Assert.True(templated.Length == 0, $"Rust lessons still templated: {string.Join(", ", templated)}");
+        Assert.All(LessonsOf("rust-systems").Where(lesson => lesson.Exercise.Kind == ExerciseKind.Numeric), lesson =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.Unit), $"{lesson.Slug}: numeric answer has no unit.");
+            Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.WorkedSolution), $"{lesson.Slug}: numeric answer has no worked solution.");
+        });
+    }
+
+    [Fact]
     public void Every_Rust_code_exercise_has_a_sandbox_fixture()
     {
         // Production grades code only through the sandbox broker. A code lesson with no fixture

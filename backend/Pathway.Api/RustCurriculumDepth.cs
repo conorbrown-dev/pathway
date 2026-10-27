@@ -55,6 +55,11 @@ static partial class Curriculum
         "rust-performance-profiling" => RustPerformanceProfiling(lesson),
         "rust-resilience-queues" => RustResilienceQueues(lesson),
         "rust-containers-delivery" => RustContainersDelivery(lesson),
+        "rust-staff-design" => RustStaffDesign(lesson),
+        "rust-staff-architecture" => RustStaffArchitecture(lesson),
+        "rust-incident-learning" => RustIncidentLearning(lesson),
+        "rust-mentoring-leverage" => RustMentoringLeverage(lesson),
+        "rust-staff-capstone" => RustStaffCapstone(lesson),
         "rust-concurrency-send-sync" => RustConcurrencySendSync(lesson),
         "rust-async-tokio" => RustAsyncTokio(lesson),
         _ => lesson
