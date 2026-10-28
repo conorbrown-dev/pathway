@@ -12,31 +12,31 @@ public class CurriculumInvariantTests
     public static TheoryData<string> PublishedCourseIds()
     {
         var data = new TheoryData<string>();
-        foreach (var item in Curriculum.Catalog.Where(item => item.Available)) data.Add(item.Id);
+        foreach (var item in CourseCatalog.Catalog.Where(item => item.Available)) data.Add(item.Id);
         return data;
     }
 
     private static Lesson[] LessonsOf(string courseId) =>
-        Curriculum.Courses[courseId].Modules
+        CourseCatalog.Courses[courseId].Modules
             .SelectMany(module => module.Lessons)
             .OrderBy(summary => summary.Order)
-            .Select(summary => Curriculum.BySlug[summary.Slug])
+            .Select(summary => CourseCatalog.BySlug[summary.Slug])
             .ToArray();
 
     [Fact]
     public void Every_available_catalog_entry_resolves_to_a_course()
     {
-        foreach (var item in Curriculum.Catalog.Where(item => item.Available))
-            Assert.True(Curriculum.Courses.ContainsKey(item.Id), $"Catalog course '{item.Id}' has no course definition.");
+        foreach (var item in CourseCatalog.Catalog.Where(item => item.Available))
+            Assert.True(CourseCatalog.Courses.ContainsKey(item.Id), $"Catalog course '{item.Id}' has no course definition.");
     }
 
     [Theory]
     [MemberData(nameof(PublishedCourseIds))]
     public void Every_lesson_summary_resolves_to_a_lesson(string courseId)
     {
-        var missing = Curriculum.Courses[courseId].Modules
+        var missing = CourseCatalog.Courses[courseId].Modules
             .SelectMany(module => module.Lessons)
-            .Where(summary => !Curriculum.BySlug.ContainsKey(summary.Slug))
+            .Where(summary => !CourseCatalog.BySlug.ContainsKey(summary.Slug))
             .Select(summary => summary.Slug)
             .ToArray();
         Assert.True(missing.Length == 0, $"{courseId}: unresolvable lessons {string.Join(", ", missing)}");
@@ -90,7 +90,7 @@ public class CurriculumInvariantTests
     public void Public_lesson_json_never_contains_answer_data()
     {
         var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
-        foreach (var lesson in Curriculum.BySlug.Values)
+        foreach (var lesson in CourseCatalog.BySlug.Values)
         {
             var json = System.Text.Json.JsonSerializer.SerializeToNode(lesson, options)!["exercise"]!.AsObject();
             foreach (var field in new[] { "correctAnswer", "expectedNumeric", "tolerance", "workedSolution" })
@@ -190,7 +190,7 @@ public class CurriculumInvariantTests
     [InlineData("rust-async-tokio")]
     public void Authored_Rust_lessons_replace_their_templates(string slug)
     {
-        var lesson = Curriculum.BySlug[slug];
+        var lesson = CourseCatalog.BySlug[slug];
         Assert.DoesNotContain("Apply it in a small project, explain the tradeoff", lesson.Body);
         Assert.NotEqual(lesson.Subtitle, lesson.Concept);
         Assert.Contains("```rust", lesson.Body);

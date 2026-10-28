@@ -1,8 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
@@ -16,6 +13,9 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../Pathway.Domain/Pathway.Domain.csproj" />
+    <ProjectReference Include="../Pathway.Content/Pathway.Content.csproj" />
+    <ProjectReference Include="../Pathway.Infrastructure/Pathway.Infrastructure.csproj" />
     <ProjectReference Include="../Pathway.Api/Pathway.Api.csproj" />
   </ItemGroup>
 </Project>
