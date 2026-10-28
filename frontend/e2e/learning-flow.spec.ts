@@ -260,6 +260,34 @@ test('loads the first lesson for a guest learner', async ({ page }) => {
   await expect(page.getByRole('button', { name: /Check answer/i })).toBeVisible()
 })
 
+test('phone users can open course navigation and return to the home page', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'How code works' })).toBeVisible()
+
+  // The desktop sidebar is hidden on phones; the header menu opens it as a drawer.
+  const drawer = page.getByRole('complementary', { name: 'Course navigation' })
+  await expect(drawer).toBeHidden()
+  await page.getByRole('button', { name: 'Open course menu' }).click()
+  await expect(drawer.getByText('YOUR TRACK')).toBeVisible()
+  await drawer.getByRole('button', { name: 'Practice' }).click()
+  await expect(page.getByRole('heading', { name: 'Strengthen the signal.' })).toBeVisible()
+  await expect(drawer).toBeHidden()
+
+  await page.getByRole('button', { name: 'Open course menu' }).click()
+  await drawer.getByRole('button', { name: 'All courses' }).click()
+  await expect(page.getByText('CHOOSE YOUR TRACK', { exact: true })).toBeVisible()
+  await expect(page).toHaveURL(/\/$/)
+
+  await page.goBack()
+  await expect(page.getByRole('button', { name: 'Open course menu' })).toBeVisible()
+  await page.getByRole('button', { name: 'Pathway home' }).click()
+  await page.getByRole('button', { name: /Python Web: zero to staff/i }).click()
+  await page.getByRole('button', { name: 'Continue learning' }).click()
+  await expect(page.getByRole('heading', { name: 'Values and variables' })).toBeVisible()
+})
+
 test('onboarding selects a track and enters the guest learning experience', async ({ page }) => {
   await page.goto('/')
 
