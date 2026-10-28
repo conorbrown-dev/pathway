@@ -6,8 +6,7 @@ on:
     branches: [main]
     paths:
       - 'frontend/**'
-      - 'backend/Pathway.Api/**'
-      - 'backend/Pathway.Api.Tests/**'
+      - 'backend/**'
       - 'evaluator/Pathway.Evaluator/**'
       - 'sandbox-broker/**'
       - '.github/workflows/verify.yml'
@@ -38,16 +37,16 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend/Pathway.Api
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - run: dotnet restore
-      - run: dotnet build --no-restore --configuration Release
-      - name: Curriculum invariant tests
-        run: dotnet test ../Pathway.Api.Tests --configuration Release --logger "console;verbosity=normal"
+      - run: dotnet restore Pathway.slnx
+      - run: dotnet build Pathway.slnx --no-restore --configuration Release
+      - name: Architecture, curriculum and API tests
+        run: dotnet test Pathway.Api.Tests --no-build --configuration Release --logger "console;verbosity=normal"
 
   evaluator:
     name: Evaluator build
@@ -131,7 +130,7 @@ jobs:
       matrix:
         include:
           - name: api
-            context: backend/Pathway.Api
+            context: backend
           - name: broker
             context: sandbox-broker
     steps:

@@ -71,7 +71,7 @@ Learner code never runs in the API process. The API forwards code exercises to t
 
 ## Content architecture
 
-Course content is authored in `backend/Pathway.Api/Program.cs` as typed, versioned lesson records. Each lesson has concept copy, an example, requirements, a supported exercise type, tests or choices, hint, progression link, and a `C# 14` / `.NET 10` review stamp. This is intentionally structured so it can next move to a database-backed content-management workflow without changing the learner API shape.
+Course content is authored in `backend/Pathway.Content/Courses/` as typed, versioned lesson records (see [docs/backend-architecture.md](docs/backend-architecture.md) for how the backend projects fit together). Each lesson has concept copy, an example, requirements, a supported exercise type, tests or choices, hint, progression link, and a `C# 14` / `.NET 10` review stamp. This is intentionally structured so it can next move to a database-backed content-management workflow without changing the learner API shape.
 
 `GET /api/courses` returns the language-track catalog and `GET /api/courses/{courseId}` returns a course’s modules. The first catalog item is C#/.NET; adding another language means authoring another course with its own version stamp and lesson set, not changing the lesson engine.
 
