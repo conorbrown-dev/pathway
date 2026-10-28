@@ -18,13 +18,16 @@ import {
   Code2,
   Flame,
   FolderKanban,
+  House,
   LockKeyhole,
   LogIn,
   LogOut,
+  Menu,
   Play,
   RotateCcw,
   Sparkles,
   UserRound,
+  X,
 } from "lucide-react";
 
 type Choice = { id: string; text: string };
@@ -239,6 +242,25 @@ function App() {
   );
   const [workspace, setWorkspace] = useState<Workspace>("learn");
   const [calculatorOpen, setCalculatorOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  useEffect(() => {
+    // The drawer only exists below the lg breakpoint; close it if the viewport grows past it.
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const close = () => desktop.matches && setMobileNavOpen(false);
+    desktop.addEventListener("change", close);
+    return () => desktop.removeEventListener("change", close);
+  }, []);
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setMobileNavOpen(false);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [mobileNavOpen]);
   useEffect(() => {
     trackActivityOnce("session_start", { eventType: "session_start" });
   }, []);
@@ -309,6 +331,13 @@ function App() {
     setRouteVersion((current) => current + 1);
     setWorkspace("learn");
     window.history[historyMode === "push" ? "pushState" : "replaceState"]({}, "", coursePath(id));
+  };
+  const goHome = () => {
+    setMobileNavOpen(false);
+    setCalculatorOpen(false);
+    setOnboarding(true);
+    if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
+    window.scrollTo(0, 0);
   };
   const loadLesson = async (slug: string, historyMode: "push" | "replace" | "none" = "push") => {
     setLoading(true);
@@ -385,7 +414,13 @@ function App() {
   useEffect(() => {
     const onPopState = () => {
       const location = parseLearningLocation(window.location.pathname);
-      if (!location.courseId) return;
+      setMobileNavOpen(false);
+      if (!location.courseId) {
+        // Back/forward onto the home entry pushed by goHome.
+        if (window.location.pathname === "/") setOnboarding(true);
+        return;
+      }
+      if (localStorage.getItem("pathway-onboarding-complete")) setOnboarding(false);
       localStorage.setItem("pathway-course-id", location.courseId);
       requestedLessonRef.current = location.lessonSlug;
       setCourseId(location.courseId);
@@ -463,11 +498,14 @@ function App() {
         The curriculum API is unavailable.
       </div>
     );
+  const returningLearner = localStorage.getItem("pathway-onboarding-complete") === "true";
   if (onboarding)
     return (
       <Onboarding
         course={course}
         selectedCourseId={courseId}
+        returning={returningLearner}
+        signedIn={account !== null}
         onSelectCourse={(id) => {
           navigateToCourse(id);
         }}
@@ -475,6 +513,8 @@ function App() {
           if (nextAccount) setAccount(nextAccount);
           localStorage.setItem("pathway-onboarding-complete", "true");
           setOnboarding(false);
+          if (window.location.pathname === "/")
+            window.history.pushState({}, "", lessonPath(course.id, lesson.slug));
         }}
       />
     );
@@ -516,18 +556,34 @@ function App() {
           completed={completed}
           available={available}
           workspace={workspace}
-          onNavigate={setWorkspace}
+          mobileOpen={mobileNavOpen}
+          onCloseMobile={() => setMobileNavOpen(false)}
+          onHome={goHome}
+          onNavigate={(next) => {
+            setMobileNavOpen(false);
+            setWorkspace(next);
+          }}
           onChangeCourse={(id) => {
+            setMobileNavOpen(false);
             navigateToCourse(id);
           }}
-          onSelect={loadLesson}
+          onSelect={(slug) => {
+            setMobileNavOpen(false);
+            void loadLesson(slug);
+          }}
           onLocked={() =>
             notify("Complete the previous lesson to unlock this one.")
           }
         />
         <main className="min-w-0 flex-1">
-          <header className="top-shell flex h-[70px] items-center justify-between border-b border-[#3b3052] bg-[#0f0d17] px-6 sm:px-10">
-            <p className="text-sm text-[#bdb2cf]">
+          <header className="top-shell flex h-[70px] items-center justify-between gap-3 border-b border-[#3b3052] bg-[#0f0d17] px-4 sm:px-10">
+            <div className="flex min-w-0 items-center gap-2">
+            <MobileNavButtons
+              open={mobileNavOpen}
+              onOpen={() => setMobileNavOpen(true)}
+              onHome={goHome}
+            />
+            <p className="truncate text-sm text-[#bdb2cf]">
               ‹{" "}
               <span>
                 {
@@ -540,6 +596,7 @@ function App() {
                 }
               </span>
             </p>
+            </div>
             <div className="flex items-center gap-3">
               {donationUrl && (
                 <a
@@ -613,19 +670,35 @@ function App() {
         completed={completed}
         available={available}
         workspace={workspace}
-        onNavigate={setWorkspace}
+        mobileOpen={mobileNavOpen}
+        onCloseMobile={() => setMobileNavOpen(false)}
+        onHome={goHome}
+        onNavigate={(next) => {
+          setMobileNavOpen(false);
+          setWorkspace(next);
+        }}
         onChangeCourse={(id) => {
+          setMobileNavOpen(false);
           navigateToCourse(id);
           setWorkspace("learn");
         }}
-        onSelect={loadLesson}
+        onSelect={(slug) => {
+          setMobileNavOpen(false);
+          void loadLesson(slug);
+        }}
         onLocked={() =>
           notify("Complete the previous lesson to unlock this one.")
         }
       />
       <main className="min-w-0 flex-1">
-        <header className="top-shell flex h-[70px] items-center justify-between border-b border-[#e4e1d8] bg-[#faf8f2] px-6 sm:px-10">
-          <p className="text-sm text-[#70766f]">
+        <header className="top-shell flex h-[70px] items-center justify-between gap-3 border-b border-[#e4e1d8] bg-[#faf8f2] px-4 sm:px-10">
+          <div className="flex min-w-0 items-center gap-2">
+          <MobileNavButtons
+            open={mobileNavOpen}
+            onOpen={() => setMobileNavOpen(true)}
+            onHome={goHome}
+          />
+          <p className="truncate text-sm text-[#70766f]">
             ‹{" "}
             <span>
               {workspace === "learn"
@@ -635,6 +708,7 @@ function App() {
                   : "Projects"}
             </span>
           </p>
+          </div>
           <div className="flex items-center gap-3">
             {calculatorProfile && (
               <CalculatorButton open={calculatorOpen} onToggle={() => setCalculatorOpen((open) => !open)} />
@@ -741,11 +815,15 @@ function App() {
 function Onboarding({
   course,
   selectedCourseId,
+  returning,
+  signedIn,
   onSelectCourse,
   onComplete,
 }: {
   course: Course;
   selectedCourseId: string;
+  returning: boolean;
+  signedIn: boolean;
   onSelectCourse: (courseId: string) => void;
   onComplete: (account: Account | null) => void;
 }) {
@@ -814,7 +892,7 @@ function Onboarding({
             </div>
             <div className="onboarding-card rounded-2xl p-6 sm:p-8">
               <p className="text-[10px] font-bold tracking-[1.5px] text-[#ad7cf4]">
-                CHOOSE YOUR FIRST TRACK
+                {returning ? "CHOOSE YOUR TRACK" : "CHOOSE YOUR FIRST TRACK"}
               </p>
               <button
                 onClick={() => onSelectCourse("computing-foundations")}
@@ -1066,11 +1144,14 @@ function Onboarding({
                 onClick={() => onComplete(null)}
                 className="onboarding-cta mt-6 flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3.5 text-sm font-bold text-white"
               >
-                Continue as guest <ArrowRight size={17} />
+                {returning ? "Continue learning" : "Continue as guest"}{" "}
+                <ArrowRight size={17} />
               </button>
-              <p className="mt-2 text-center text-[10px] leading-relaxed text-[#857d91]">
-                No account required. Progress stays on this browser.
-              </p>
+              {!signedIn && (
+                <p className="mt-2 text-center text-[10px] leading-relaxed text-[#857d91]">
+                  No account required. Progress stays on this browser.
+                </p>
+              )}
               <button
                 onClick={() => setMode("register")}
                 className="mt-4 w-full rounded-lg border border-[#7652a6] px-4 py-3 text-xs font-bold text-[#d8c5f3] hover:bg-[#ffffff08] hover:text-white"
@@ -1259,6 +1340,9 @@ function Sidebar({
   completed,
   available,
   workspace,
+  mobileOpen,
+  onCloseMobile,
+  onHome,
   onNavigate,
   onChangeCourse,
   onSelect,
@@ -1269,15 +1353,20 @@ function Sidebar({
   completed: string[];
   available: Set<string>;
   workspace: Workspace;
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
+  onHome: () => void;
   onNavigate: (workspace: Workspace) => void;
   onChangeCourse: (courseId: string) => void;
   onSelect: (slug: string) => void;
   onLocked: () => void;
 }) {
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(
+  const [desktopCollapsed, setCollapsed] = useState(
     () => localStorage.getItem("pathway-sidebar-collapsed") === "true",
   );
+  // The mobile drawer always shows the full sidebar, whatever the desktop preference.
+  const collapsed = desktopCollapsed && !mobileOpen;
   const setSidebarCollapsed = (next: boolean) => {
     setCollapsed(next);
     setTrackMenuOpen(false);
@@ -1297,14 +1386,44 @@ function Sidebar({
     </button>
   );
   return (
-    <aside className={`sidebar-shell relative hidden min-h-screen shrink-0 flex-col border-r border-[#332846] bg-[#0f0d17] py-7 text-[#eee6fa] transition-[width,padding] duration-200 lg:flex ${collapsed ? "w-[76px] px-3" : "w-[264px] px-4"}`}>
+    <>
+    {mobileOpen && (
+      <div
+        className="fixed inset-0 z-30 bg-[#000000a6] lg:hidden"
+        onClick={onCloseMobile}
+        aria-hidden="true"
+      />
+    )}
+    <aside
+      id="course-navigation"
+      aria-label="Course navigation"
+      className={`sidebar-shell shrink-0 flex-col border-r border-[#332846] bg-[#0f0d17] py-7 text-[#eee6fa] ${
+        mobileOpen
+          ? "fixed inset-y-0 left-0 z-40 flex w-[min(300px,86vw)] overflow-y-auto px-4"
+          : `relative hidden min-h-screen transition-[width,padding] duration-200 lg:flex ${collapsed ? "w-[76px] px-3" : "w-[264px] px-4"}`
+      }`}
+    >
       <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between px-3"}`}>
-        <div className={`flex items-center font-display font-semibold text-white ${collapsed ? "" : "gap-2 text-[27px] tracking-[-1.4px]"}`}>
+        <button
+          onClick={onHome}
+          aria-label="Pathway home"
+          title="All courses"
+          className={`flex items-center font-display font-semibold text-white ${collapsed ? "" : "gap-2 text-[27px] tracking-[-1.4px]"}`}
+        >
           <span className="brand-orbit font-sans text-[33px] leading-5 text-[#b981ff]">
             ⌁
           </span>
           {!collapsed && <span>pathway</span>}
-        </div>
+        </button>
+        {mobileOpen ? (
+          <button
+            onClick={onCloseMobile}
+            aria-label="Close course menu"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-[#9688ae] hover:bg-[#ffffff0b] hover:text-white"
+          >
+            <X size={18} />
+          </button>
+        ) : (
         <button
           onClick={() => setSidebarCollapsed(!collapsed)}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -1313,8 +1432,18 @@ function Sidebar({
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
+        )}
       </div>
       <nav className={`grid gap-1 text-sm font-medium ${collapsed ? "mt-10" : "mt-11"}`}>
+        <button
+          onClick={onHome}
+          aria-label={collapsed ? "All courses" : undefined}
+          title={collapsed ? "All courses" : undefined}
+          className={`flex items-center rounded-lg py-2.5 text-left text-[#bdb2cf] transition hover:bg-[#ffffff0b] hover:text-white ${collapsed ? "justify-center px-2" : "gap-3 px-3"}`}
+        >
+          <House size={17} />
+          {!collapsed && "All courses"}
+        </button>
         {nav("learn", "Learn", <Code2 size={17} />)}
         {nav(
           "practice",
@@ -1444,6 +1573,38 @@ function Sidebar({
         </>
       )}
     </aside>
+    </>
+  );
+}
+
+function MobileNavButtons({
+  open,
+  onOpen,
+  onHome,
+}: {
+  open: boolean;
+  onOpen: () => void;
+  onHome: () => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-1 lg:hidden">
+      <button
+        onClick={onOpen}
+        aria-label="Open course menu"
+        aria-expanded={open}
+        aria-controls="course-navigation"
+        className="grid h-10 w-10 place-items-center rounded-md text-[#bdb2cf] hover:bg-[#ffffff0b] hover:text-white"
+      >
+        <Menu size={20} />
+      </button>
+      <button
+        onClick={onHome}
+        aria-label="Pathway home"
+        className="grid h-10 w-10 place-items-center rounded-md hover:bg-[#ffffff0b]"
+      >
+        <span className="brand-orbit font-sans text-[26px] leading-none text-[#b981ff]">⌁</span>
+      </button>
+    </div>
   );
 }
 
