@@ -90,8 +90,8 @@ public static class MathMasteryCatalog
     private static MathMasteryQuestion CreateQuestion(string family, Random r, int index)
     {
         var k = index % 4;
-        var a = r.Next(3, 12) + index * 2; // varying inputs, no identical repeats
-        var b = r.Next(2, 8) + index;
+        var a = r.Next(3, 12) + index * 3; // varying inputs, no identical repeats
+        var b = r.Next(2, 8) + index * 2;
         var c = r.Next(2, 6) + index;
         var id = "q" + (index + 1).ToString(CultureInfo.InvariantCulture);
         var skill = Skills[k];
@@ -104,7 +104,7 @@ public static class MathMasteryCatalog
         {
             case "place":
                 return k switch {
-                    0 => N("Round " + (a * 100 + b * 10 + c) + " to the nearest hundred.", (a + (b >= 5 ? 1 : 0)) * 100),
+                    0 => N("Round " + (a * 100 + b * 10 + c) + " to the nearest hundred.", Math.Round((a*100 + b*10 + c)/100d, MidpointRounding.AwayFromZero) * 100),
                     1 => N("A warehouse has " + (a * 1000 + b * 100) + " items and ships " + (c * 100) + ". How many remain?", a * 1000 + b * 100 - c * 100, "items"),
                     2 => C("Which is the value of the hundreds digit in " + (a * 1000 + 400 + c) + "?", "400", "40", "4"),
                     _ => N("Estimate " + (a * 10 + 1) + " + " + (b * 10 + 2) + " by rounding each number to the nearest ten.", (a + b) * 10)
