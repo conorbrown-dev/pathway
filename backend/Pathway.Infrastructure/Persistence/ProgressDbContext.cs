@@ -6,6 +6,7 @@ public sealed class ProgressDbContext(DbContextOptions<ProgressDbContext> option
 {
     public DbSet<LearnerProgress> Progress => Set<LearnerProgress>();
     public DbSet<LearnerSubmission> Submissions => Set<LearnerSubmission>();
+    public DbSet<MathMasteryAttempt> MathMasteryAttempts => Set<MathMasteryAttempt>();
     public DbSet<WorkspaceProject> WorkspaceProjects => Set<WorkspaceProject>();
     public DbSet<WorkspaceFile> WorkspaceFiles => Set<WorkspaceFile>();
     public DbSet<ReviewSchedule> ReviewSchedules => Set<ReviewSchedule>();
@@ -22,6 +23,14 @@ public sealed class ProgressDbContext(DbContextOptions<ProgressDbContext> option
             entity.ToTable("learner_progress");
             entity.HasKey(item => item.Id);
             entity.HasIndex(item => new { item.LearnerId, item.LessonSlug }).IsUnique();
+            entity.Property(item => item.LearnerId).HasMaxLength(100);
+            entity.Property(item => item.LessonSlug).HasMaxLength(200);
+        });
+        modelBuilder.Entity<MathMasteryAttempt>(entity =>
+        {
+            entity.ToTable("math_mastery_attempts");
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.LearnerId, item.LessonSlug, item.CreatedAt });
             entity.Property(item => item.LearnerId).HasMaxLength(100);
             entity.Property(item => item.LessonSlug).HasMaxLength(200);
         });
@@ -218,4 +227,16 @@ public sealed class ActivityEvent
     public string? Workspace { get; init; }
     public string? Detail { get; init; }
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class MathMasteryAttempt
+{
+    public Guid Id { get; init; } = Guid.NewGuid();
+    public required string LearnerId { get; init; }
+    public required string LessonSlug { get; init; }
+    public required string QuestionsJson { get; init; }
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? SubmittedAt { get; set; }
+    public int CorrectAnswers { get; set; }
+    public bool Passed { get; set; }
 }

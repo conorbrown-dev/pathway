@@ -21,6 +21,12 @@ public static class DatabaseSchema
             "Id" uuid PRIMARY KEY, "ProjectId" uuid NOT NULL, "Path" character varying(260) NOT NULL,
             "Content" character varying(100000) NOT NULL, "UpdatedAt" timestamp with time zone NOT NULL);
         CREATE UNIQUE INDEX IF NOT EXISTS "IX_workspace_files_ProjectId_Path" ON workspace_files ("ProjectId", "Path");
+        CREATE TABLE IF NOT EXISTS math_mastery_attempts (
+            "Id" uuid PRIMARY KEY, "LearnerId" character varying(100) NOT NULL,
+            "LessonSlug" character varying(200) NOT NULL, "QuestionsJson" text NOT NULL,
+            "CreatedAt" timestamp with time zone NOT NULL, "SubmittedAt" timestamp with time zone NULL,
+            "CorrectAnswers" integer NOT NULL, "Passed" boolean NOT NULL);
+        CREATE INDEX IF NOT EXISTS "IX_math_mastery_attempts_LearnerId_LessonSlug_CreatedAt" ON math_mastery_attempts ("LearnerId", "LessonSlug", "CreatedAt");
         CREATE TABLE IF NOT EXISTS review_schedules (
             "Id" uuid PRIMARY KEY, "LearnerId" character varying(100) NOT NULL, "LessonSlug" character varying(200) NOT NULL,
             "IntervalDays" integer NOT NULL, "DueAt" timestamp with time zone NOT NULL, "LastReviewedAt" timestamp with time zone NOT NULL);
