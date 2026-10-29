@@ -387,7 +387,7 @@ test.describe('public API contract', () => {
 
     const depth = await validate('math-negative-numbers', '260', 'ft')
     await expect(depth).toBeOK()
-    await expect(depth.json()).resolves.toMatchObject({ passed: true, nextLessonSlug: 'math-order-of-operations', workedSolution: expect.stringContaining('260 ft deeper') })
+    await expect(depth.json()).resolves.toMatchObject({ passed: true, nextLessonSlug: null, workedSolution: expect.stringContaining('260 ft deeper') })
     await expect((await validate('math-negative-numbers', '79.25', 'm')).json()).resolves.toMatchObject({ passed: true })
     await expect((await validate('math-negative-numbers', '440', 'ft')).json()).resolves.toMatchObject({ passed: false, nextLessonSlug: null })
 
@@ -600,4 +600,64 @@ test.describe('public API contract', () => {
     await expect(outcomes).toBeOK()
     await expect(outcomes.json()).resolves.toMatchObject({ courseId: 'csharp-dotnet', exerciseAttempts: 0, interviewReadiness: 0, mentorReadiness: 0 })
   })
+})
+
+
+test('math mastery is server-scored, learner-bound, and required for progression', async ({ request }) => {
+  const api = apiBaseUrl
+  const slug = 'prealgebra-constant-proportionality'
+  const learner = { 'X-Learner-Id': 'math-mastery-' + crypto.randomUUID() }
+  const other = { 'X-Learner-Id': 'math-mastery-' + crypto.randomUUID() }
+  const start = async () => {
+    const response = await request.post(api + '/api/math/mastery/' + slug + '/start', { headers: learner })
+    await expect(response).toBeOK()
+    return await response.json() as {
+      attemptId: string; requiredCorrect: number;
+      questions: { id: string; kind: 'Numeric' | 'Choice'; skill: string; prompt: string; choices: string[] }[]
+    }
+  }
+  const before = await request.get(api + '/api/progress', { headers: learner })
+  await expect(before).toBeOK()
+  expect((await before.json()).completedLessonSlugs).not.toContain(slug)
+  const attempt = await start()
+  expect(attempt.questions).toHaveLength(8)
+  expect(attempt.requiredCorrect).toBe(7)
+  expect(new Set(attempt.questions.map(q => q.skill)).size).toBe(4)
+  for (const q of attempt.questions) {
+    expect(q).not.toHaveProperty('expected')
+    expect(q).not.toHaveProperty('correctChoice')
+  }
+  const endpoint = api + '/api/math/mastery/' + slug + '/' + attempt.attemptId + '/submit'
+  const foreign = await request.post(endpoint, { headers: other, data: { answers: {} } })
+  expect(foreign.status()).toBe(404)
+  const failed = await request.post(endpoint, { headers: learner, data: { answers: {} } })
+  await expect(failed).toBeOK()
+  await expect(failed.json()).resolves.toMatchObject({ passed: false, correctAnswers: 0, totalQuestions: 8 })
+  const replay = await request.post(endpoint, { headers: learner, data: { answers: {} } })
+  expect(replay.status()).toBe(409)
+  const noProgress = await request.get(api + '/api/progress', { headers: learner })
+  expect((await noProgress.json()).completedLessonSlugs).not.toContain(slug)
+
+  const next = await start()
+  const answers: Record<string, string> = {}
+  for (const q of next.questions) {
+    let answer: number | string
+    if (q.kind === 'Choice') {
+      answer = q.choices.find(s => /^y = \d+x$/.test(s))!
+    } else if (/conveyor creates/.test(q.prompt)) {
+      const [, items, minutes] = q.prompt.match(/creates (\d+) parts in (\d+) minutes/)!
+      answer = Number(items) / Number(minutes)
+    } else if (/ride covers/.test(q.prompt)) {
+      const [, speed, hours] = q.prompt.match(/covers (\d+) kilometers each hour.*?(\d+) hours/)!
+      answer = Number(speed) * Number(hours)
+    } else if (/A table has/.test(q.prompt)) {
+      answer = Number(q.prompt.match(/y = (\d+),/)![1])
+    } else throw new Error('No solver for vetted proportionality question: ' + q.prompt)
+    answers[q.id] = String(answer)
+  }
+  const success = await request.post(api + '/api/math/mastery/' + slug + '/' + next.attemptId + '/submit', { headers: learner, data: { answers } })
+  await expect(success).toBeOK()
+  await expect(success.json()).resolves.toMatchObject({ passed: true, correctAnswers: 8, totalQuestions: 8 })
+  const progress = await request.get(api + '/api/progress', { headers: learner })
+  expect((await progress.json()).completedLessonSlugs).toContain(slug)
 })
