@@ -97,7 +97,9 @@ type CourseCatalogItem = {
   available: boolean;
 };
 const courseBadgeText = (course: { id: string; languageId: string }) =>
-  course.id === "react-lite"
+  course.id === "prealgebra"
+    ? "a+b"
+    : course.id === "react-lite"
     ? "⚛L"
     : course.languageId === "react"
       ? "⚛"
@@ -270,7 +272,7 @@ function App() {
   );
   useEffect(() => {
     if (course)
-      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.languageId === "math" ? "Precalculus" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
+      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.id === "prealgebra" ? "Pre-algebra" : course.languageId === "math" ? "Precalculus" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
   }, [course]);
   const notify = (message: string) => {
     setToast(message);
@@ -772,6 +774,7 @@ function Onboarding({
   };
   const computingSelected = selectedCourseId === "computing-foundations";
   const electricalSelected = selectedCourseId === "electrical-engineering-foundations";
+  const prealgebraSelected = selectedCourseId === "prealgebra";
   const precalculusSelected = selectedCourseId === "precalculus";
   const gitSelected = selectedCourseId === "git-cli";
   const webBasicsSelected = selectedCourseId === "web-development-basics";
@@ -845,6 +848,18 @@ function Onboarding({
                   <small className="mt-1 block text-xs text-[#aaa3b6]">Circuits · measurement · components · signals</small>
                 </span>
                 {electricalSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
+              </button>
+              <button
+                aria-label="Select Pre-algebra course"
+                onClick={() => onSelectCourse("prealgebra")}
+                className={`track-option mt-3 flex w-full items-center gap-4 rounded-xl p-4 text-left ${prealgebraSelected ? "ring-1 ring-[#bd87ff]" : ""}`}
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#457a8b] font-mono text-xs font-bold text-white">a+b</span>
+                <span>
+                  <strong className="block text-sm text-white">Pre-algebra</strong>
+                  <small className="mt-1 block text-xs text-[#aaa3b6]">Fractions · rates · percentages · equations</small>
+                </span>
+                {prealgebraSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
               </button>
               <button
                 aria-label="Select Precalculus course"
@@ -1617,7 +1632,13 @@ function WorkspacePanel({
     );
   }
   const stages =
-    course.id === "precalculus"
+    course.id === "prealgebra"
+      ? [
+          ["Number fluency", "Build place value, calculation sense, fractions, decimals, ratios, and percentages through worked everyday examples."],
+          ["Algebra foundations", "Use negative numbers, powers, expressions, equations, and inequalities to describe and solve practical situations."],
+          ["Apply and verify", "Graph patterns, measure shapes, interpret data, and complete a real-world budget capstone before continuing to precalculus."],
+        ]
+      : course.id === "precalculus"
       ? [
           [
             "Model the everyday",
