@@ -302,7 +302,7 @@ public static class MathMasteryCatalog
                     0 => N("Evaluate " + b + "³.",b*b*b),
                     1 => N("Starting with " + a + " cells, doubling " + c + " times gives how many cells?",a*Math.Pow(2,c),"cells"),
                     2 => C("What does " + b + "⁻² mean?", "1/" + (b*b), "−"+(b*b),b*b+""),
-                    _ => N("Simplify 2⁵ × 2" + "² ÷ 2⁴.",8)
+                    _ => N("Simplify 2^" + (c+3) + " × 2² ÷ 2^" + (c+1) + ".",16)
                 };
             case "roots":
                 return k switch {
