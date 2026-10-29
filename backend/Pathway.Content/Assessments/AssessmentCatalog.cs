@@ -50,7 +50,7 @@ public static class AssessmentCatalog
             new("table", "If output = 2n + 3, what is output for n = 4?", ["11", "9", "14"], "11", "prealgebra-tables-patterns"),
             new("slope", "A line rises 8 units over a run of 4 units. What is its slope?", ["2", "4", "12"], "2", "prealgebra-slope")
         ]),
-        new("prealgebra", "geometry,-data,-and-probability-8", "Geometry, data, and probability checkpoint", [
+        new("prealgebra", "geometry-and-data-8", "Geometry, data, and probability checkpoint", [
             new("area", "What is the area of a 3 m by 5 m rectangle?", ["15 m²", "16 m", "8 m²"], "15 m²", "prealgebra-area-perimeter"),
             new("volume", "What is the volume of a 2 cm × 3 cm × 4 cm box?", ["9 cm³", "24 cm³", "24 cm²"], "24 cm³", "prealgebra-volume-measurement"),
             new("median", "What is the median of 3, 9, 4?", ["9", "4", "16/3"], "4", "prealgebra-data-probability")
