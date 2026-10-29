@@ -81,13 +81,13 @@ public static class MathMasteryCatalog
         var random = new Random(seed);
         var questions = new MathMasteryQuestion[QuestionCount];
         for (var i = 0; i < questions.Length; i++)
-            questions[i] = CreateQuestion(family, random, i);
+            questions[i] = CreateQuestion(slug, family, random, i);
         if (questions.Select(q => q.Prompt).Distinct().Count() != questions.Length)
             throw new InvalidOperationException("Generated duplicate mastery questions for " + slug);
         return questions;
     }
 
-    private static MathMasteryQuestion CreateQuestion(string family, Random r, int index)
+    private static MathMasteryQuestion CreateQuestion(string slug, string family, Random r, int index)
     {
         var k = index % 4;
         var a = r.Next(3, 12) + index * 3; // varying inputs, no identical repeats
@@ -99,6 +99,113 @@ public static class MathMasteryCatalog
             => new(id, skill, "Numeric", prompt, unit, [], answer, null);
         MathMasteryQuestion C(string prompt, string answer, string wrong1, string wrong2)
             => new(id, skill, "Choice", prompt, null, new[] { answer, wrong1, wrong2 }.OrderBy(_ => r.Next()).ToArray(), null, answer);
+
+
+        // Lessons requiring specific methods get explicit question families rather than
+        // being assessed by general questions from the surrounding unit.
+        switch (slug)
+        {
+            case "algebra1-parallel-perpendicular":
+                return k switch {
+                    0 => N("A line has slope " + a + ". Find the perpendicular slope (3 decimal places).", Math.Round(-1d/a,3)),
+                    1 => N("A road parallel to y=" + a + "x+" + b + " has which slope?",a),
+                    2 => C("A line with slope " + a + " is perpendicular to which slope?",(-1d/a).ToString("0.###",CultureInfo.InvariantCulture),a.ToString(CultureInfo.InvariantCulture),(-a).ToString(CultureInfo.InvariantCulture)),
+                    _ => N("For a line rising " + (a*b) + " units over " + b + " units of run, find the perpendicular slope (3 decimals).",Math.Round(-1d/a,3))
+                };
+            case "algebra1-rearrange-formulas":
+                return k switch {
+                    0 => N("Area = length × width. A=" + a*b + " cm² and length=" + a + " cm. Find width.",b,"cm"),
+                    1 => N("Distance = rate × time. Distance=" + a*b + " km in " + b + " hours. Find rate.",a,"km/h"),
+                    2 => C("From F = ma with F = " + a + " N, which formula isolates mass?", "m=F/a", "m=Fa", "m=a/F"),
+                    _ => N("From P=2(length+width), perimeter is " + 2*(a+b) + " m and length is " + a + " m. Find width.",b,"m")
+                };
+            case "algebra1-compound-inequalities":
+                return k switch {
+                    0 => N("Find the lower boundary for " + a + " ≤ x + " + b + " ≤ " + (a+b+c) + ".",a-b),
+                    1 => N("Find the upper boundary of " + a + " ≤ 2x ≤ " + (2*(a+b)) + ".",a+b),
+                    2 => C("Does the interval " + a + " ≤ x < " + (a+b) + " include its lower endpoint?", "Yes, but not the upper endpoint", "No, neither endpoint", "Yes, both endpoints"),
+                    _ => N("Find the lower boundary for " + (a+2*b) + " ≤ 2x + " + a + " ≤ " + (a+2*b+2*c) + ".",b)
+                };
+            case "algebra1-factor-trinomials":
+                return k switch {
+                    0 => N("Factor x²+" + (a+b) + "x+" + a*b + " as (x+" + a + ")(x+n). Find n.",b),
+                    1 => N("A rectangular area's polynomial is x²+" + (a+b) + "x+" + a*b + ". One side is x+" + a + ". Find the constant in the other side.",b),
+                    2 => C("Which pair adds to " + (a+b) + " and multiplies to " + a*b + "?",a + " and " + b,a + " and " + (b+1),(a+b) + " and 1"),
+                    _ => N("Solve x²+" + (a+b) + "x+" + a*b + "=0. Find the larger (less negative) real root.",-Math.Min(a,b))
+                };
+            case "algebra1-complete-square":
+                return k switch {
+                    0 => N("Complete the perfect square x²+" + 2*a + "x+n. Find n.",a*a),
+                    1 => N("Complete x²+" + 2*a + "x+" + b + " and find its vertex's minimum y-coordinate.",b-a*a),
+                    2 => C("What completes x²+" + 2*a + "x+n into a perfect square?",(a*a).ToString(),(a*a+1).ToString(),(a*a+2).ToString()),
+                    _ => N("Rewrite x²+" + 2*a + "x+" + b + " as (x+" + a + ")²+k. Find k.",b-a*a)
+                };
+            case "algebra1-quadratic-formula":
+                return k switch {
+                    0 => N("Using the quadratic formula, solve x²−" + (a+b) + "x+" + a*b + "=0. Find the larger root.",Math.Max(a,b)),
+                    1 => N("For x²−" + (a+b) + "x+" + a*b + "=0, calculate the discriminant b²−4ac.",(a-b)*(a-b)),
+                    2 => C("If the discriminant is " + (a-b)*(a-b) + ", how many distinct real roots?",a==b ? "One" : "Two",a==b ? "Two" : "One","Zero"),
+                    _ => N("Solve x²+" + 2*a + "x+" + a*a + "=0 using the quadratic formula. Find the repeated root.",-a)
+                };
+            case "algebra1-multiply-polynomials":
+                return k switch {
+                    0 => N("Expand (x+" + a + ")(x+" + b + "). What is the coefficient of x?",a+b),
+                    1 => N("A rectangle has sides x+" + a + " and x+" + b + ". Its area when x=" + c + " is?",(c+a)*(c+b),"units²"),
+                    2 => C("Expand (x+" + a + ")². What is the coefficient of x?",(2*a).ToString(),a.ToString(),(a*a).ToString()),
+                    _ => N("Expand (x+" + a + ")(x+" + b + "). What is the constant term?",a*b)
+                };
+            case "algebra1-function-transformations":
+            case "math-transformations":
+                return k switch {
+                    0 => N("The parabola y=(x−" + a + ")²+" + b + " has a vertex at which x?",a),
+                    1 => N("Shift y=x² to the right " + a + " and down " + b + ". What is the new vertex's y-coordinate?",-b),
+                    2 => C("Which transformation moves f(x) right by " + a + "?", "f(x−" + a + ")", "f(x+" + a + ")", "f(x)+" + a),
+                    _ => N("The parabola y=−(x+" + a + ")²+" + b + " has what maximum y-value?",b)
+                };
+            case "algebra1-piecewise-functions":
+            case "math-piecewise":
+                return k switch {
+                    0 => N("f(x)=" + a + " for x≤0, and f(x)=2x+" + b + " for x>0. Find f(0).",a),
+                    1 => N("A service costs $" + a + " for up to two hours, then $" + b + " per extra hour. What does " + (c+2) + " hours cost?",a+b*c,"USD"),
+                    2 => C("f(x)=" + a + " for x≤" + b + ", and f(x)=" + c + " for x>" + b + ". At x=" + b + ", which rule applies?", "The first rule", "The second rule", "Both values added"),
+                    _ => N("f(x)=x² for x<0, and f(x)=x+" + a + " for x≥0. Find f(" + c + ").",c+a)
+                };
+            case "math-domain-range":
+                return k switch {
+                    0 => N("For f(x)=1/(x−" + a + "), which x is excluded from the domain?",a),
+                    1 => N("For f(x)=√(x−" + a + "), what is the minimum real input x?",a),
+                    2 => C("For y=(x−" + a + ")²+" + b + ", what is its range?", "y≥" + b, "y≤" + b, "all real y"),
+                    _ => N("For y=(x+" + a + ")²−" + b + ", find its minimum output.",-b)
+                };
+            case "math-solving-exponential":
+                return k switch {
+                    0 => N("Solve 2^x=" + Math.Pow(2,c) + ". Find x.",c),
+                    1 => N("A population of " + a + " doubles every hour. How many hours until it reaches " + a*Math.Pow(2,b) + "?",b,"hours"),
+                    2 => C("What operation isolates x in 3^x=" + Math.Pow(3,c) + "?", "Apply log base 3", "Subtract 3", "Multiply by 3"),
+                    _ => N("Solve 10^x=" + Math.Pow(10,b) + ". Find x.",b)
+                };
+            case "math-angles-radians":
+                return k switch {
+                    0 => N("Convert " + 30*c + " degrees to radians (3 decimals).",Math.Round(30*c*Math.PI/180,3),"rad"),
+                    1 => N("Convert " + a + "π radians to degrees.",180*a,"degrees"),
+                    2 => index<4 ? C("A full revolution is how many radians?", "2π", "π", "π/2") : C("A half revolution is how many radians?", "π", "2π", "π/2"),
+                    _ => N("Convert " + 45*b + " degrees to radians (3 decimals).",Math.Round(45*b*Math.PI/180,3),"rad")
+                };
+            case "math-right-triangle-trig":
+                return k switch {
+                    0 => N("A right triangle has legs " + 3*c + " and " + 4*c + ". Find sin of the angle opposite the shorter leg.",.6),
+                    1 => N("The opposite side is " + 3*c + " and the adjacent side is " + 4*c + ". Find tan(angle).",.75),
+                    2 => index<4 ? C("Which ratio defines cosine?", "Adjacent / hypotenuse", "Opposite / hypotenuse", "Opposite / adjacent") : C("Which ratio defines sine?", "Opposite / hypotenuse", "Adjacent / hypotenuse", "Opposite / adjacent"),
+                    _ => N("A right triangle has legs " + 3*c + " and " + 4*c + ". Find its hypotenuse.",5*c)
+                };
+            case "math-unit-circle":
+                return k switch {
+                    0 => index<4 ? N("On the unit circle, x-coordinate at 0°?",1) : N("On the unit circle, x-coordinate at 180°?",-1),
+                    1 => index<4 ? N("On the unit circle, y-coordinate at 90°?",1) : N("On the unit circle, y-coordinate at 270°?",-1),
+                    2 => index<4 ? C("What is the point at 180°?", "(-1,0)", "(1,0)", "(0,1)") : C("What is the point at 90°?", "(0,1)", "(1,0)", "(0,-1)"),
+                    _ => index<4 ? N("At 270°, what is sin(angle)?",-1) : N("At 90°, what is cos(angle)?",0)
+                };
+        }
 
         switch (family)
         {
