@@ -311,7 +311,7 @@ public static class MathMasteryCatalog
                 return k switch {
                     0 => N("Solve "+a+"x + "+b+" = "+(a*c+b)+". Find x.",c),
                     1 => N("A ride costs $"+b+" upfront plus $"+a+" per mile. Total charge is $"+(b+a*c)+". How many miles?",c,"miles"),
-                    2 => C("What keeps an equation balanced?", "Apply the same operation to both sides", "Change only the left side", "Divide by zero"),
+                    2 => C("While solving "+a+"x + "+b+" = "+(a*c+b)+", what keeps the equation balanced?", "Apply the same operation to both sides", "Change only the left side", "Divide by zero"),
                     _ => N("Solve "+(a+b)+"x + "+b+" = "+b+"x + "+(a*c+b)+". Find x.",c)
                 };
             case "inequality":
