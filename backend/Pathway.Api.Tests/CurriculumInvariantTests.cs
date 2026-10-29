@@ -112,6 +112,46 @@ public class CurriculumInvariantTests
         });
     }
 
+
+    [Fact]
+    public void Prealgebra_teaches_concepts_before_module_end_assessments()
+    {
+        var course = CourseCatalog.Courses["prealgebra"];
+        var lessons = LessonsOf("prealgebra");
+        Assert.True(lessons.Length >= 30, "Pre-algebra must be a full bridge course, not a small sample.");
+
+        Assert.All(lessons, lesson =>
+        {
+            Assert.Equal("Pre-algebra", lesson.Version.Language);
+            Assert.NotEqual(lesson.Subtitle, lesson.Concept);
+            Assert.Contains("## Learn the idea", lesson.Body);
+            Assert.Contains("## Worked example", lesson.Body);
+            Assert.Contains("## Check the reasoning", lesson.Body);
+            Assert.True(lesson.Exercise.Kind is ExerciseKind.Numeric or ExerciseKind.MultipleChoice);
+            if (lesson.Exercise.Kind == ExerciseKind.Numeric)
+            {
+                Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.Unit));
+                Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.WorkedSolution));
+                Assert.NotNull(lesson.Exercise.ExpectedNumeric);
+                Assert.True(lesson.Exercise.Tolerance > 0);
+            }
+        });
+
+        Assert.Equal(9, course.Modules.Count);
+        foreach (var module in course.Modules)
+        {
+            var checkpoint = AssessmentCatalog.Get(course.Id, module.Id);
+            Assert.NotNull(checkpoint);
+            Assert.True(checkpoint!.Questions.Length >= 3, $"{module.Id} needs a substantive checkpoint.");
+            var lessonSlugs = module.Lessons.Select(lesson => lesson.Slug).ToHashSet(StringComparer.Ordinal);
+            Assert.All(checkpoint.Questions, question =>
+            {
+                Assert.Contains(question.CorrectAnswer, question.Choices);
+                Assert.Contains(question.ReviewLessonSlug, lessonSlugs);
+            });
+        }
+    }
+
     [Fact]
     public void Precalculus_lessons_tie_math_to_situations_and_explain_every_step()
     {
