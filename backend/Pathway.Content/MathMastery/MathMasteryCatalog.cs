@@ -148,7 +148,7 @@ public static class MathMasteryCatalog
                 return k switch {
                     0 => N("Evaluate (" + a + "/" + b + ") × (" + c + "/" + a + "). Enter a decimal rounded to three places.",Math.Round((double)c/b,3)),
                     1 => N("A plan uses " + a + "/" + b + " kg per batch. What mass do " + c + " batches use? Decimal (3 places).",Math.Round((double)a*c/b,3),"kg"),
-                    2 => C("Which operation turns division by " + a + "/" + b + " into multiplication?", "Multiply by " + b + "/" + a, "Multiply by " + a + "/" + b, "Add " + b + "/" + a),
+                    2 => C("Which operation turns division by " + a + "/" + (a+b) + " into multiplication?", "Multiply by " + (a+b) + "/" + a, "Multiply by " + a + "/" + (a+b), "Add " + (a+b) + "/" + a),
                     _ => N("Evaluate (" + a + "/" + b + ") ÷ (" + c + "/" + b + "). Decimal (3 places).",Math.Round((double)a/c,3))
                 };
             case "decimal":
