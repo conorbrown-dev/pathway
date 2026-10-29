@@ -269,7 +269,7 @@ public static class MathMasteryCatalog
                 return k switch {
                     0 => N("A conveyor creates " + (a*b) + " parts in " + b + " minutes. Find the constant of proportionality in parts per minute.",a,"parts/min"),
                     1 => N("A proportional ride covers " + a + " kilometers each hour. How far in " + b + " hours?",a*b,"km"),
-                    2 => C("Which relationship is proportional?", "y = " + a + "x", "y = " + a + "x + 5", "y = x² + " + a),
+                    2 => C("A proportional relationship has constant of proportionality " + a + ". Which equation represents it?", "y = " + a + "x", "y = " + a + "x + 5", "y = x² + " + a),
                     _ => N("A table has x = 1, 2, 3 and y = " + a + ", " + 2*a + ", " + 3*a + ". Find k = y/x.",a)
                 };
             case "percent":
