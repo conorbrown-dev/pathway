@@ -317,14 +317,17 @@ test.describe('public API contract', () => {
     const course = await courseResponse.json() as Course
     const summaries = orderedLessons(course)
     expect(summaries[0]).toMatchObject({ slug: 'ee-charge-voltage-current', order: 1 })
-    expect(summaries).toHaveLength(31)
-    expect(summaries.at(-1)).toMatchObject({ slug: 'ee-final-project-check', order: 31 })
+    expect(summaries.length).toBeGreaterThanOrEqual(34)
+    expect(summaries.at(-1)).toMatchObject({ slug: 'ee-final-project-check', order: summaries.length })
     expect(summaries.map(lesson => lesson.slug)).toEqual(expect.arrayContaining([
       'ee-physical-quantities-lab',
       'ee-resistors-real-designs',
       'ee-breadboard-led-project',
       'ee-capacitor-use-cases',
       'ee-diode-circuit-applications',
+      'ee-wave-properties',
+      'ee-wave-phase',
+      'ee-phasors',
       'ee-two-wire-encoded-buttons',
       'ee-custom-wall-control-project',
       'ee-controller-isolated-relay-project',

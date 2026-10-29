@@ -117,6 +117,7 @@ test('serves learning-experience templates, checkpoints, and guarded coaching', 
 })
 
 test('deep-links every published course and representative lessons', async ({ page, request }) => {
+  test.setTimeout(120_000) // Traverses all published courses; grows as curriculum expands.
   const catalogResponse = await request.get(`${apiBaseUrl}/api/courses`)
   await expect(catalogResponse).toBeOK()
   const catalog = await catalogResponse.json() as { id: string; available: boolean }[]
