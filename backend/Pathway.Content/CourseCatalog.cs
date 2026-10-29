@@ -16,6 +16,7 @@ public static class CourseCatalog
 
     public static readonly Dictionary<string, Lesson> BySlug = Curriculum.ComputingLessons
         .Concat(Curriculum.ElectricalEngineeringLessons)
+        .Concat(Curriculum.PrealgebraLessons)
         .Concat(Curriculum.PrecalculusLessons)
         .Concat(Curriculum.WebBasicsLessons)
         .Concat(Curriculum.TailwindLessons)
@@ -33,6 +34,7 @@ public static class CourseCatalog
 
     public static readonly Course ComputingCourse = BuildCourse("computing-foundations", "Computing Foundations", "computing", "Core computing", "Machine · data · processes · OS", "2026-09-24", Curriculum.ComputingLessons);
     public static readonly Course ElectricalEngineeringCourse = BuildCourse("electrical-engineering-foundations", "Electrical Engineering Foundations", "electrical-engineering", "EE Foundations", "Circuits · measurement · components · practical builds", "2026-10-16", Curriculum.ElectricalEngineeringLessons);
+    public static readonly Course PrealgebraCourse = BuildCourse("prealgebra", "Pre-algebra: the bridge to equations", "math", "Pre-algebra", "Number sense · fractions · percentages · equations", "2026-10-28", Curriculum.PrealgebraLessons);
     public static readonly Course PrecalculusCourse = BuildCourse("precalculus", "Precalculus: math you can picture", "math", "Precalculus", "Functions · growth · trigonometry · real-world models", "2026-10-25", Curriculum.PrecalculusLessons);
     public static readonly Course GitCliCourse = BuildCourse("git-cli", "Git CLI", "git", "Git CLI", "Repositories · branches · remotes · recovery", "2026-09-26", Curriculum.GitCliLessons);
     public static readonly Course WebBasicsCourse = BuildCourse("web-development-basics", "Web Development Basics 2026", "web", "Web Platform 2026", "HTML · CSS · JavaScript · TypeScript · HTTP", "2026-09-26", Curriculum.WebBasicsLessons);
@@ -51,6 +53,7 @@ public static class CourseCatalog
     {
         [ComputingCourse.Id] = ComputingCourse,
         [ElectricalEngineeringCourse.Id] = ElectricalEngineeringCourse,
+        [PrealgebraCourse.Id] = PrealgebraCourse,
         [PrecalculusCourse.Id] = PrecalculusCourse,
         [GitCliCourse.Id] = GitCliCourse,
         [WebBasicsCourse.Id] = WebBasicsCourse,
@@ -70,6 +73,7 @@ public static class CourseCatalog
     [
         new(ComputingCourse.Id, ComputingCourse.Title, ComputingCourse.LanguageId, ComputingCourse.LanguageVersion, ComputingCourse.FrameworkVersion, true),
         new(ElectricalEngineeringCourse.Id, ElectricalEngineeringCourse.Title, ElectricalEngineeringCourse.LanguageId, ElectricalEngineeringCourse.LanguageVersion, ElectricalEngineeringCourse.FrameworkVersion, true),
+        new(PrealgebraCourse.Id, PrealgebraCourse.Title, PrealgebraCourse.LanguageId, PrealgebraCourse.LanguageVersion, PrealgebraCourse.FrameworkVersion, true),
         new(PrecalculusCourse.Id, PrecalculusCourse.Title, PrecalculusCourse.LanguageId, PrecalculusCourse.LanguageVersion, PrecalculusCourse.FrameworkVersion, true),
         new(GitCliCourse.Id, GitCliCourse.Title, GitCliCourse.LanguageId, GitCliCourse.LanguageVersion, GitCliCourse.FrameworkVersion, true),
         new(WebBasicsCourse.Id, WebBasicsCourse.Title, WebBasicsCourse.LanguageId, WebBasicsCourse.LanguageVersion, WebBasicsCourse.FrameworkVersion, true),
