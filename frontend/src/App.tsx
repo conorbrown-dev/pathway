@@ -6,6 +6,8 @@ import { getAnonymousLearnerId, trackActivity, trackActivityOnce } from "./analy
 import { authConfigured, initializeAuth, login, logout as signOut, refreshToken } from "./auth";
 import { parseLessonBody, parseLessonInline } from "./lessonBody";
 import { CalculatorButton, CalculatorPanel, calculatorProfileFor } from "./calculator/Calculator";
+import { toggleNumericSign } from "./numericAnswer";
+import { WavePlayground } from "./wave/WavePlayground";
 import {
   ArrowLeft,
   ArrowRight,
@@ -97,7 +99,9 @@ type CourseCatalogItem = {
   available: boolean;
 };
 const courseBadgeText = (course: { id: string; languageId: string }) =>
-  course.id === "prealgebra"
+  course.id === "algebra-1"
+    ? "x²"
+    : course.id === "prealgebra"
     ? "a+b"
     : course.id === "react-lite"
     ? "⚛L"
@@ -272,7 +276,7 @@ function App() {
   );
   useEffect(() => {
     if (course)
-      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.id === "prealgebra" ? "Pre-algebra" : course.languageId === "math" ? "Precalculus" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
+      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.id === "prealgebra" ? "Pre-algebra" : course.id === "algebra-1" ? "Algebra I" : course.languageId === "math" ? "Precalculus" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
   }, [course]);
   const notify = (message: string) => {
     setToast(message);
@@ -775,6 +779,7 @@ function Onboarding({
   const computingSelected = selectedCourseId === "computing-foundations";
   const electricalSelected = selectedCourseId === "electrical-engineering-foundations";
   const prealgebraSelected = selectedCourseId === "prealgebra";
+  const algebraOneSelected = selectedCourseId === "algebra-1";
   const precalculusSelected = selectedCourseId === "precalculus";
   const gitSelected = selectedCourseId === "git-cli";
   const webBasicsSelected = selectedCourseId === "web-development-basics";
@@ -860,6 +865,18 @@ function Onboarding({
                   <small className="mt-1 block text-xs text-[#aaa3b6]">Fractions · rates · percentages · equations</small>
                 </span>
                 {prealgebraSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
+              </button>
+              <button
+                aria-label="Select Algebra I course"
+                onClick={() => onSelectCourse("algebra-1")}
+                className={`track-option mt-3 flex w-full items-center gap-4 rounded-xl p-4 text-left ${algebraOneSelected ? "ring-1 ring-[#bd87ff]" : ""}`}
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#5079a6] font-mono text-xs font-bold text-white">x²</span>
+                <span>
+                  <strong className="block text-sm text-white">Algebra I</strong>
+                  <small className="mt-1 block text-xs text-[#aaa3b6]">Equations · functions · systems · quadratics</small>
+                </span>
+                {algebraOneSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
               </button>
               <button
                 aria-label="Select Precalculus course"
@@ -1632,7 +1649,13 @@ function WorkspacePanel({
     );
   }
   const stages =
-    course.id === "prealgebra"
+    course.id === "algebra-1"
+      ? [
+          ["Expression and equation fluency", "Solve real equations and inequalities with meaningful signs, inverse operations, and checks."],
+          ["Models and functions", "Graph lines, solve simultaneous constraints, and connect exponents, factoring, and quadratics to practical models."],
+          ["Algebra I capstone", "Compare competing pricing plans using equations, break-even analysis, and inequalities."],
+        ]
+      : course.id === "prealgebra"
       ? [
           ["Number fluency", "Build place value, calculation sense, fractions, decimals, ratios, and percentages through worked everyday examples."],
           ["Algebra foundations", "Use negative numbers, powers, expressions, equations, and inequalities to describe and solve practical situations."],
@@ -2086,6 +2109,7 @@ function LessonContent({ lesson }: { lesson: Lesson }) {
         </p>
       </div>
       <LessonBody lesson={lesson} />
+      {["ee-ac-fundamentals", "ee-wave-properties", "ee-wave-phase", "ee-phasors", "math-unit-circle"].includes(lesson.slug) && <WavePlayground phasors={lesson.slug === "ee-phasors"} />}
       <div className="overflow-hidden rounded-md bg-[#252b28] shadow-sm">
         <div className="bg-[#303735] px-4 py-2 font-mono text-[10px] text-[#bbc4bb]">
           {snippetLanguageLabel[language]}
@@ -2560,6 +2584,7 @@ function ExercisePanel({
             placeholder="0"
             className="min-w-0 flex-1 rounded-md border border-[#d5d2c9] bg-white px-3 py-3 font-mono text-sm text-[#26342d] outline-none focus:border-[#258160]"
           />
+          <button type="button" aria-label="Toggle positive or negative" title="Change the sign of your answer" aria-pressed={answer.trim().startsWith("-") || answer.trim().startsWith("−")} onClick={() => setAnswer(toggleNumericSign(answer))} className="rounded-md border border-[#d5d2c9] bg-white px-3 py-3 font-mono text-sm font-semibold text-[#26342d] hover:border-[#258160] focus-visible:outline-2 focus-visible:outline-[#258160]">±</button>
           <label className="sr-only" htmlFor={`numeric-unit-${lesson.slug}`}>Unit</label>
           <select
             id={`numeric-unit-${lesson.slug}`}

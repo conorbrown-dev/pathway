@@ -153,6 +153,41 @@ public class CurriculumInvariantTests
     }
 
     [Fact]
+    public void Algebra_one_has_instruction_first_modules_signed_answers_and_checkpoints()
+    {
+        var course = CourseCatalog.Courses["algebra-1"];
+        var lessons = LessonsOf("algebra-1");
+        Assert.Equal(33, lessons.Length);
+        Assert.Equal(11, course.Modules.Count);
+        Assert.All(lessons, lesson =>
+        {
+            Assert.Equal("Algebra I", lesson.Version.Language);
+            Assert.NotEqual(lesson.Subtitle, lesson.Concept);
+            Assert.DoesNotContain("A foundational rule for", lesson.Concept);
+            Assert.Contains("## What it means", lesson.Body);
+            Assert.Contains("## Work through an example", lesson.Body);
+            Assert.Contains("## Check the reasoning", lesson.Body);
+            Assert.Equal(ExerciseKind.Numeric, lesson.Exercise.Kind);
+            Assert.NotNull(lesson.Exercise.ExpectedNumeric);
+            Assert.True(lesson.Exercise.Tolerance > 0);
+            Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.WorkedSolution));
+        });
+        Assert.Contains(lessons, lesson => lesson.Exercise.ExpectedNumeric < 0);
+        foreach (var module in course.Modules)
+        {
+            var checkpoint = AssessmentCatalog.Get(course.Id, module.Id);
+            Assert.NotNull(checkpoint);
+            Assert.True(checkpoint!.Questions.Length >= 3);
+            var moduleSlugs = module.Lessons.Select(lesson => lesson.Slug).ToHashSet();
+            Assert.All(checkpoint.Questions, question =>
+            {
+                Assert.Contains(question.CorrectAnswer, question.Choices);
+                Assert.Contains(question.ReviewLessonSlug, moduleSlugs);
+            });
+        }
+    }
+
+    [Fact]
     public void Precalculus_lessons_tie_math_to_situations_and_explain_every_step()
     {
         // Authoring rule (docs/precalculus-curriculum.md): every formula is anchored to a real or

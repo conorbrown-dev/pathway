@@ -117,6 +117,7 @@ test('serves learning-experience templates, checkpoints, and guarded coaching', 
 })
 
 test('deep-links every published course and representative lessons', async ({ page, request }) => {
+  test.setTimeout(120_000) // Traverses all published courses; grows as curriculum expands.
   const catalogResponse = await request.get(`${apiBaseUrl}/api/courses`)
   await expect(catalogResponse).toBeOK()
   const catalog = await catalogResponse.json() as { id: string; available: boolean }[]
@@ -806,4 +807,58 @@ test('math and engineering lessons offer a calculator that can fill a numeric an
   // Courses without numeric work don't show it.
   await page.goto('/courses/git-cli')
   await expect(page.getByRole('button', { name: 'Calculator', exact: true })).toHaveCount(0)
+})
+
+
+test('signed numeric answers can be toggled on mobile-style decimal inputs', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
+  await page.goto('/courses/precalculus/lessons/math-negative-numbers')
+  const answer = page.getByLabel('Numeric answer')
+  await answer.fill('260')
+  const sign = page.getByRole('button', { name: 'Toggle positive or negative' })
+  await sign.click()
+  await expect(answer).toHaveValue('-260')
+  await expect(sign).toHaveAttribute('aria-pressed', 'true')
+  await sign.click()
+  await expect(answer).toHaveValue('260')
+  await answer.fill('')
+  await sign.click()
+  await expect(answer).toHaveValue('-')
+  await answer.fill('260')
+  await page.getByRole('button', { name: /Check answer/i }).click()
+  await expect(page.getByText('Correct', { exact: true })).toBeVisible()
+})
+
+test('electrical wave graphs update amplitude, period and phase interactively', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
+  await page.goto('/courses/electrical-engineering-foundations/lessons/ee-wave-phase')
+  const graph = page.getByRole('region', { name: 'Interactive wave graph' })
+  await expect(graph).toBeVisible()
+  const amplitude = graph.getByRole('slider', { name: 'Amplitude' })
+  await amplitude.focus()
+  await amplitude.press('End')
+  await amplitude.press('ArrowLeft')
+  await amplitude.press('ArrowLeft')
+  const period = graph.getByRole('slider', { name: 'Period' })
+  await period.focus()
+  await period.press('Home')
+  await period.press('ArrowRight')
+  const phase = graph.getByRole('slider', { name: 'Phase' })
+  await phase.focus()
+  await phase.press('End')
+  for (let n = 0; n < 6; n++) await phase.press('ArrowLeft')
+  await expect(graph.getByRole('img', { name: /Sine graph/ })).toHaveAttribute('aria-label', /amplitude 4, period 1 seconds, phase 90 degrees/)
+  await expect(graph.getByText(/value = 4.00/)).toBeVisible()
+  await page.goto('/courses/electrical-engineering-foundations/lessons/ee-phasors')
+  await expect(page.getByRole('img', { name: /Phasor direction/ })).toBeVisible()
+})
+
+
+test('Algebra I accepts a genuinely negative numeric answer', async ({ request }) => {
+  const response = await request.post(`${apiBaseUrl}/api/submissions/validate`, {
+    data: { lessonSlug: 'algebra1-slope-from-points', answer: '-3', unit: 'units/unit', code: '' },
+  })
+  expect(response.ok()).toBeTruthy()
+  const result = await response.json()
+  expect(result.passed).toBe(true)
 })
