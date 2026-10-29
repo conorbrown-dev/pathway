@@ -127,7 +127,7 @@ public static class MathMasteryCatalog
                 return k switch {
                     0 => N("Find the greatest common factor of " + (a*b) + " and " + (a*c) + " and " + (a*c) + ". Find their greatest common factor.", Gcd(a*b,a*c)),
                     1 => N("Find the least common multiple of " + a + " and " + b + ".", a*b/Gcd(a,b)),
-                    2 => C("Is 1 a prime number?", "No, it has only one positive factor", "Yes, it is odd", "Yes, it divides every integer"),
+                    2 => index < 4 ? C("Is 1 a prime number?", "No, it has only one positive factor", "Yes, it is odd", "Yes, it divides every integer") : C("Is 2 a prime number?", "Yes, it has exactly two positive factors", "No, it is even", "No, because 1 divides it"),
                     _ => N("How many positive factors does " + (a*b) + " have?", DivisorCount(a*b))
                 };
             case "fraction":
@@ -232,14 +232,14 @@ public static class MathMasteryCatalog
                 return k switch {
                     0 => N("A rectangle has width "+b+" cm and length "+a+" cm. Find area.",a*b,"cm²"),
                     1 => N("A fence encloses a "+a+" m by "+b+" m rectangle. How many meters of perimeter?",2*(a+b),"m"),
-                    2 => C("Which unit is correct for area?", "cm²", "cm", "cm³"),
+                    2 => index < 4 ? C("Which unit describes rectangle area?", "cm²", "cm", "cm³") : C("Which unit describes the distance around a rectangle?", "cm", "cm²", "cm³"),
                     _ => N("A triangle has base "+(2*b)+" cm and height "+a+" cm. Find area.",a*b,"cm²")
                 };
             case "volume":
                 return k switch {
                     0 => N("A box measures "+a+" cm × "+b+" cm × "+c+" cm. Find its volume.",a*b*c,"cm³"),
                     1 => N("Convert "+a+" L to milliliters.",a*1000,"mL"),
-                    2 => C("What unit describes the volume of a cube?", "cm³", "cm²", "cm"),
+                    2 => index < 4 ? C("What unit describes the volume of a cube?", "cm³", "cm²", "cm") : C("What unit describes a square face of a cube?", "cm²", "cm", "cm³"),
                     _ => N("A cube has side length "+b+" cm. Find its volume.",b*b*b,"cm³")
                 };
             case "statistics":
@@ -253,14 +253,14 @@ public static class MathMasteryCatalog
                 return k switch {
                     0 => N("You start with $"+(a*20)+" and spend $"+(b*7)+" on supplies. How much remains?",a*20-b*7,"USD"),
                     1 => N("Plan A costs $"+(a*b)+" plus $"+c+" per item; plan B costs $"+(c+b)+" per item. At how many items do costs tie?",a),
-                    2 => C("Which operation identifies the remaining budget?", "Starting amount minus total spending", "Spending plus debt", "Total spending divided by 100"),
+                    2 => C("A budget begins with $" + a + " and spends $" + b + ". Which calculation finds the remainder?", "Start minus spending", "Spending plus start", "Start multiplied by spending"),
                     _ => N("Buy "+c+" parts at $"+a+" each, and pay a fixed $"+b+" shipping fee. Find total cost.",a*c+b,"USD")
                 };
             case "systems":
                 return k switch {
                     0 => N("Solve x+y="+(a+b)+" and x−y="+(a-b)+". What is x?",a),
                     1 => N("Two groups total "+(a+b)+" people; the first group has "+(a-b)+" more than the second. How many in the first?",a,"people"),
-                    2 => C("What does an intersection of two lines represent?", "A solution satisfying both equations", "Only the first line's slope", "The point (0,0) for all systems"),
+                    2 => C("If y=" + a + "x+" + b + " and y=x+" + c + " intersect, what does their intersection represent?", "A point satisfying both equations", "Only the first line's slope", "Always the origin"),
                     _ => N("For y=x+"+b+" and y=−x+"+(2*a+b)+", find the x-coordinate where they intersect.",a)
                 };
             case "scientific":
@@ -274,7 +274,7 @@ public static class MathMasteryCatalog
                 return k switch {
                     0 => N("A population of "+a+" doubles "+c+" times. Final population?",a*Math.Pow(2,c)),
                     1 => N("A machine loses half its stock each round. Starting from "+(a*64)+" units, what remains after "+c+" rounds?",a*64/Math.Pow(2,c),"units"),
-                    2 => C("Which rule is exponential?", "Multiply by a fixed factor each interval", "Add a fixed amount each interval", "Draw a vertical line"),
+                    2 => C("A quantity grows by " + a + "% each year. Which rule models equal time steps?", "Multiply by the same factor each year", "Add the same fixed number each year", "Draw a vertical line"),
                     _ => N("A fund starts at $"+(a*10)+" and grows 10% per year. What after 2 years? Round to cents.",Math.Round(a*10*1.21,2),"USD")
                 };
             case "polynomial":
@@ -309,7 +309,7 @@ public static class MathMasteryCatalog
                 return k switch {
                     0 => N("Data: (0,"+b+"), (1,"+(a+b)+"), (2,"+(2*a+b)+"). Find slope.",a),
                     1 => N("A pump starts at "+b+" L and adds "+a+" L/min. Predict volume after "+c+" min.",b+a*c,"L"),
-                    2 => C("A fixed starting charge and a constant per-unit rate produce what kind of relationship?", "Linear, but not necessarily proportional", "Always proportional", "Always quadratic"),
+                    2 => C("A plan has a fixed $" + b + " fee and $" + a + " per use. What kind of cost relationship?", "Linear but not proportional", "Proportional through the origin", "Quadratic"),
                     _ => N("Plan A is $"+(a*b)+" plus $"+c+" per item. Plan B is $"+(c+b)+" per item. Find their break-even item count.",a)
                 };
             case "rational":
@@ -330,14 +330,14 @@ public static class MathMasteryCatalog
                 return k switch {
                     0 => N("Convert "+(30*c)+"° to radians. Round to 3 decimals.",Math.Round(30*c*Math.PI/180,3),"rad"),
                     1 => N("A right triangle has opposite side "+(3*c)+" and adjacent side "+(4*c)+". Find tan(angle) as a decimal.",0.75),
-                    2 => C("What is sin(90°)?", "1", "0", "−1"),
+                    2 => index < 4 ? C("What is sin(90°)?", "1", "0", "−1") : C("What is sin(0°)?", "0", "1", "−1"),
                     _ => N("A sine wave has period "+c+" seconds. What frequency (Hz) does it have? Round to 3 decimals.",Math.Round(1d/c,3),"Hz")
                 };
             case "sequences":
                 return k switch {
                     0 => N("An arithmetic sequence is "+a+", "+(a+b)+", "+(a+2*b)+". What is the next term?",a+3*b),
                     1 => N("A pattern starts at "+a+" and doubles each term. What is its fourth term?",a*8),
-                    2 => C("A sequence with a constant difference is called:", "Arithmetic", "Geometric", "Quadratic only"),
+                    2 => C("Sequence " + a + ", " + (a+b) + ", " + (a+2*b) + " follows what kind of pattern?", "Arithmetic", "Geometric", "Random"),
                     _ => N("Find the sum of the first "+c+" terms 1+2+…+"+c+".",c*(c+1)/2d)
                 };
             default: throw new InvalidOperationException("Unknown mathematics family: "+family);
