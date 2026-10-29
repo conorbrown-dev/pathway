@@ -6,6 +6,8 @@ import { getAnonymousLearnerId, trackActivity, trackActivityOnce } from "./analy
 import { authConfigured, initializeAuth, login, logout as signOut, refreshToken } from "./auth";
 import { parseLessonBody, parseLessonInline } from "./lessonBody";
 import { CalculatorButton, CalculatorPanel, calculatorProfileFor } from "./calculator/Calculator";
+import { toggleNumericSign } from "./numericAnswer";
+import { WavePlayground } from "./wave/WavePlayground";
 import {
   ArrowLeft,
   ArrowRight,
@@ -2086,6 +2088,7 @@ function LessonContent({ lesson }: { lesson: Lesson }) {
         </p>
       </div>
       <LessonBody lesson={lesson} />
+      {["ee-ac-fundamentals", "ee-wave-properties", "ee-wave-phase", "ee-phasors", "math-unit-circle"].includes(lesson.slug) && <WavePlayground phasors={lesson.slug === "ee-phasors"} />}
       <div className="overflow-hidden rounded-md bg-[#252b28] shadow-sm">
         <div className="bg-[#303735] px-4 py-2 font-mono text-[10px] text-[#bbc4bb]">
           {snippetLanguageLabel[language]}
@@ -2560,6 +2563,7 @@ function ExercisePanel({
             placeholder="0"
             className="min-w-0 flex-1 rounded-md border border-[#d5d2c9] bg-white px-3 py-3 font-mono text-sm text-[#26342d] outline-none focus:border-[#258160]"
           />
+          <button type="button" aria-label="Toggle positive or negative" title="Change the sign of your answer" aria-pressed={answer.trim().startsWith("-") || answer.trim().startsWith("−")} onClick={() => setAnswer(toggleNumericSign(answer))} className="rounded-md border border-[#d5d2c9] bg-white px-3 py-3 font-mono text-sm font-semibold text-[#26342d] hover:border-[#258160] focus-visible:outline-2 focus-visible:outline-[#258160]">±</button>
           <label className="sr-only" htmlFor={`numeric-unit-${lesson.slug}`}>Unit</label>
           <select
             id={`numeric-unit-${lesson.slug}`}

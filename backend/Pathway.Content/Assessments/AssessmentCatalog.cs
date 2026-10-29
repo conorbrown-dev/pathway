@@ -25,6 +25,7 @@ public static class AssessmentCatalog
             new("money", "What is 1.5 × 0.2?", ["0.3", "3", "0.03"], "0.3", "prealgebra-decimal-arithmetic"),
             new("rate", "A runner travels 15 miles in 3 hours. What is the unit rate?", ["45 miles/hour", "5 miles/hour", "12 miles/hour"], "5 miles/hour", "prealgebra-ratios-rates"),
             new("scale", "If 2 cups make 4 servings, how many cups make 10 servings?", ["5", "8", "20"], "5", "prealgebra-proportions"),
+            new("constant", "A proportional rule is y = 4x. What is its constant of proportionality?", ["4", "0", "x"], "4", "prealgebra-constant-proportionality"),
             new("discount", "What is 10% of $80?", ["$8", "$10", "$72"], "$8", "prealgebra-percent")
         ]),
         new("prealgebra", "signed-numbers-and-powers-4", "Signed numbers and powers checkpoint", [

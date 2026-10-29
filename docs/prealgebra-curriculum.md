@@ -14,7 +14,7 @@ For learners who can count and perform basic arithmetic but lack confidence with
 2. Every lesson includes a relatable physical, financial, or digital example, an explicitly explained worked problem, a common mistake, and short guided practice.
 3. **Instruction comes before evaluation.** The attached lesson exercise is practice; each module's separate checkpoint is the summative assessment. Multiple-choice checkpoints include lesson-specific review references.
 4. Explain what a symbol represents, with example values and units. Do not introduce abstract letters before defining variables.
-5. Give numeric practice a canonical unit and a fully worked solution after the successful submission; wrong answers receive a hint. Avoid numeric practice that requires negative input on a mobile number keypad; use multiple choice for those questions.
+5. Give numeric practice a canonical unit and a fully worked solution after the successful submission; wrong answers receive a hint. Signed values are supported by the dedicated ± control and must retain their mathematical sign; do not disguise signed changes as magnitudes.
 6. Check operations against number sense (estimation), context (money, storage, geometry), and units before teaching a shortcut.
 7. For a physical quantity like distance, distinguish the signed change from the nonnegative magnitude. Distinguish percentages from percentage points, rates from amounts, and area from perimeter.
 8. Use age-neutral, inclusive examples. Do not assume access to expensive equipment, software, or services.
@@ -25,7 +25,7 @@ For learners who can count and perform basic arithmetic but lack confidence with
 | --- | --- |
 | Arithmetic foundations | Place value, estimation, four operations, order of operations, factors, multiples, GCF/LCM |
 | Fractions and rational numbers | Meaning of fractions, equivalence, comparison, addition/subtraction, multiplication/division |
-| Decimals and percentages | Decimal conversion and arithmetic, ratios, unit rates, proportions, scale, discounts |
+| Decimals and percentages | Decimal conversion and arithmetic, ratios, unit rates, proportions, constants of proportionality, origin graphs, scale, discounts |
 | Signed numbers and powers | Integer ordering and operations, absolute value, exponents, square roots |
 | Algebraic expressions | Variables, constants, substitution, like terms, distribution and factoring |
 | Equations and inequalities | Equality, inverse operations, one-step and two-step equations, boundary values |
