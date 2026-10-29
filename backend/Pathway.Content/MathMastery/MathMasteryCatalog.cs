@@ -169,7 +169,7 @@ public static class MathMasteryCatalog
                 return k switch {
                     0 => N("Find " + b*5 + "% of " + (a*20) + ".",a*20*b*5/100d),
                     1 => N("A $"+ (a*20) +" jacket is discounted " + b*5 + "%. Find the sale price.",a*20*(1-b*5/100d),"USD"),
-                    2 => C("An increase of " + b*5 + "% means multiply the original by which factor?",(1+b*5/100d).ToString("0.##",CultureInfo.InvariantCulture),b*5/100d+"", (1-b*5/100d).ToString("0.##",CultureInfo.InvariantCulture)),
+                    2 => C("An increase of " + b*5 + "% means multiply the original by which factor?",(1+b*5/100d).ToString("0.##",CultureInfo.InvariantCulture),b*5/100d+"", "1"),
                     _ => N("A quantity rises from " + (a*10) + " to " + (a*10 + b*10) + ". What is the percent increase? Round to 2 decimals.",Math.Round(100d*b/a,2),"%")
                 };
             case "signed":
@@ -205,7 +205,7 @@ public static class MathMasteryCatalog
                     0 => N("Solve "+a+"x + "+b+" = "+(a*c+b)+". Find x.",c),
                     1 => N("A ride costs $"+b+" upfront plus $"+a+" per mile. Total charge is $"+(b+a*c)+". How many miles?",c,"miles"),
                     2 => C("What keeps an equation balanced?", "Apply the same operation to both sides", "Change only the left side", "Divide by zero"),
-                    _ => N("Solve "+a+"x + "+b+" = "+b+"x + "+((a-b)*c+b)+". Find x.",c)
+                    _ => N("Solve "+(a+b)+"x + "+b+" = "+b+"x + "+(a*c+b)+". Find x.",c)
                 };
             case "inequality":
                 return k switch {
@@ -259,7 +259,7 @@ public static class MathMasteryCatalog
             case "systems":
                 return k switch {
                     0 => N("Solve x+y="+(a+b)+" and x−y="+(a-b)+". What is x?",a),
-                    1 => N("Two groups total "+(a+b)+" people; the first group has "+(a-b)+" more than the second. How many in the first?",a,"people"),
+                    1 => N("Two groups total "+(a+b)+" people; the first group has "+(a>=b ? (a-b)+" more" : (b-a)+" fewer")+" than the second. How many in the first?",a,"people"),
                     2 => C("If y=" + a + "x+" + b + " and y=x+" + c + " intersect, what does their intersection represent?", "A point satisfying both equations", "Only the first line's slope", "Always the origin"),
                     _ => N("For y=x+"+b+" and y=−x+"+(2*a+b)+", find the x-coordinate where they intersect.",a)
                 };
