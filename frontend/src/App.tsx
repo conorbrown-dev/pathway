@@ -8,6 +8,7 @@ import { parseLessonBody, parseLessonInline } from "./lessonBody";
 import { CalculatorButton, CalculatorPanel, calculatorProfileFor } from "./calculator/Calculator";
 import { toggleNumericSign } from "./numericAnswer";
 import { WavePlayground } from "./wave/WavePlayground";
+import { MathMasteryPanel } from "./math/MathMasteryPanel";
 import {
   ArrowLeft,
   ArrowRight,
@@ -352,7 +353,9 @@ function App() {
         if (!ordered.length) throw Error();
         const progress = await fetch(`${api}/api/progress`, { headers: apiHeaders(account) })
           .then((r) => (r.ok ? r.json() : null));
-        const stored = progress?.completedLessonSlugs ?? readProgress(progressOwner);
+        const stored = nextCourse.languageId === "math"
+          ? (progress?.completedLessonSlugs ?? [])
+          : (progress?.completedLessonSlugs ?? readProgress(progressOwner));
         const requestedLessonSlug = requestedLessonRef.current;
         const requested = requestedLessonSlug && ordered.some((item) => item.slug === requestedLessonSlug)
           ? requestedLessonSlug
@@ -433,7 +436,7 @@ function App() {
         detail: next.passed ? "passed" : "failed",
       });
       if (next.passed) {
-        setCompleted((current) => {
+        if (course.languageId !== "math") setCompleted((current) => {
           const updated = [...new Set([...current, lesson.slug])];
           localStorage.setItem(
             progressStorageKey(progressOwner),
@@ -694,6 +697,7 @@ function App() {
                 onNext={() => lesson.nextSlug && loadLesson(lesson.nextSlug)}
               />
             ) : (
+              <div className="min-w-0">
               <ExercisePanel
                 lesson={lesson}
                 answer={answer}
@@ -715,7 +719,17 @@ function App() {
                 submit={submit}
                 onReset={() => setCode(lesson.exercise.starterCode ?? "")}
                 onNext={() => lesson.nextSlug && loadLesson(lesson.nextSlug)}
+                allowNext={course.languageId !== "math"}
               />
+              {course.languageId === "math" && <MathMasteryPanel key={lesson.slug} slug={lesson.slug} api={api}
+                headers={() => apiHeaders(account)} guidedPassed={hasPassed} mastered={completed.includes(lesson.slug)}
+                onMastered={() => setCompleted(current => {
+                  const updated = [...new Set([...current, lesson.slug])];
+                  localStorage.setItem(progressStorageKey(progressOwner), JSON.stringify(updated));
+                  return updated;
+                })}
+                onNext={() => lesson.nextSlug && loadLesson(lesson.nextSlug)} />}
+              </div>
             )}
           </section>
         ) : (
@@ -2503,6 +2517,7 @@ function ExercisePanel({
   submit,
   onReset,
   onNext,
+  allowNext = true,
 }: {
   lesson: Lesson;
   answer: string;
@@ -2524,6 +2539,7 @@ function ExercisePanel({
   submit: () => void;
   onReset: () => void;
   onNext: () => void;
+  allowNext?: boolean;
 }) {
   const e = lesson.exercise;
   const language = lesson.slug.startsWith("react-")
@@ -2691,7 +2707,7 @@ function ExercisePanel({
           />
         </details>
       )}
-      {passed && lesson.nextSlug && (
+      {passed && allowNext && lesson.nextSlug && (
         <button
           onClick={onNext}
           className="mt-5 rounded-md bg-pine px-4 py-3 text-[13px] font-bold text-white"
