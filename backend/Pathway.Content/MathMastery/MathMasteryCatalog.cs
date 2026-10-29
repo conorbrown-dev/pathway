@@ -125,7 +125,7 @@ public static class MathMasteryCatalog
                 };
             case "factors":
                 return k switch {
-                    0 => N("Find the greatest common factor of " + (a*b) + " and " + (a*c) + " when " + b + " and " + c + " are consecutive multiples of their own gcd. Enter their GCF.", Gcd(a*b,a*c)),
+                    0 => N("Find the greatest common factor of " + (a*b) + " and " + (a*c) + " and " + (a*c) + ". Find their greatest common factor.", Gcd(a*b,a*c)),
                     1 => N("Find the least common multiple of " + a + " and " + b + ".", a*b/Gcd(a,b)),
                     2 => C("Is 1 a prime number?", "No, it has only one positive factor", "Yes, it is odd", "Yes, it divides every integer"),
                     _ => N("How many positive factors does " + (a*b) + " have?", DivisorCount(a*b))
@@ -205,7 +205,7 @@ public static class MathMasteryCatalog
                     0 => N("Solve "+a+"x + "+b+" = "+(a*c+b)+". Find x.",c),
                     1 => N("A ride costs $"+b+" upfront plus $"+a+" per mile. Total charge is $"+(b+a*c)+". How many miles?",c,"miles"),
                     2 => C("What keeps an equation balanced?", "Apply the same operation to both sides", "Change only the left side", "Divide by zero"),
-                    _ => N("Solve "+a+"x + "+b+" = "+b+"x + "+(a-b)*c+". Find x.",c)
+                    _ => N("Solve "+a+"x + "+b+" = "+b+"x + "+((a-b)*c+b)+". Find x.",c)
                 };
             case "inequality":
                 return k switch {
