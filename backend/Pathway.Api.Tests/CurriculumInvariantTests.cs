@@ -162,6 +162,8 @@ public class CurriculumInvariantTests
         Assert.All(lessons, lesson =>
         {
             Assert.Equal("Algebra I", lesson.Version.Language);
+            Assert.NotEqual(lesson.Subtitle, lesson.Concept);
+            Assert.DoesNotContain("A foundational rule for", lesson.Concept);
             Assert.Contains("## What it means", lesson.Body);
             Assert.Contains("## Work through an example", lesson.Body);
             Assert.Contains("## Check the reasoning", lesson.Body);
