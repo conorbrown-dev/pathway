@@ -294,6 +294,7 @@ static partial class Curriculum
 
     public static readonly Lesson[] ElectricalEngineeringLessons = BuildElectricalEngineeringLessons();
     public static readonly Lesson[] PrealgebraLessons = BuildPrealgebraLessons();
+    public static readonly Lesson[] AlgebraOneLessons = BuildAlgebraOneLessons();
     public static readonly Lesson[] PrecalculusLessons = BuildPrecalculusLessons();
     public static readonly Lesson[] ReactCourseLessons = BuildReactCourseLessons();
     public static readonly Lesson[] ReactLiteCourseLessons = BuildReactLiteCourseLessons();

@@ -99,7 +99,9 @@ type CourseCatalogItem = {
   available: boolean;
 };
 const courseBadgeText = (course: { id: string; languageId: string }) =>
-  course.id === "prealgebra"
+  course.id === "algebra-1"
+    ? "x²"
+    : course.id === "prealgebra"
     ? "a+b"
     : course.id === "react-lite"
     ? "⚛L"
@@ -274,7 +276,7 @@ function App() {
   );
   useEffect(() => {
     if (course)
-      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.id === "prealgebra" ? "Pre-algebra" : course.languageId === "math" ? "Precalculus" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
+      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.id === "prealgebra" ? "Pre-algebra" : course.id === "algebra-1" ? "Algebra I" : course.languageId === "math" ? "Precalculus" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
   }, [course]);
   const notify = (message: string) => {
     setToast(message);
@@ -777,6 +779,7 @@ function Onboarding({
   const computingSelected = selectedCourseId === "computing-foundations";
   const electricalSelected = selectedCourseId === "electrical-engineering-foundations";
   const prealgebraSelected = selectedCourseId === "prealgebra";
+  const algebraOneSelected = selectedCourseId === "algebra-1";
   const precalculusSelected = selectedCourseId === "precalculus";
   const gitSelected = selectedCourseId === "git-cli";
   const webBasicsSelected = selectedCourseId === "web-development-basics";
@@ -862,6 +865,18 @@ function Onboarding({
                   <small className="mt-1 block text-xs text-[#aaa3b6]">Fractions · rates · percentages · equations</small>
                 </span>
                 {prealgebraSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
+              </button>
+              <button
+                aria-label="Select Algebra I course"
+                onClick={() => onSelectCourse("algebra-1")}
+                className={`track-option mt-3 flex w-full items-center gap-4 rounded-xl p-4 text-left ${algebraOneSelected ? "ring-1 ring-[#bd87ff]" : ""}`}
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#5079a6] font-mono text-xs font-bold text-white">x²</span>
+                <span>
+                  <strong className="block text-sm text-white">Algebra I</strong>
+                  <small className="mt-1 block text-xs text-[#aaa3b6]">Equations · functions · systems · quadratics</small>
+                </span>
+                {algebraOneSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
               </button>
               <button
                 aria-label="Select Precalculus course"
@@ -1634,7 +1649,13 @@ function WorkspacePanel({
     );
   }
   const stages =
-    course.id === "prealgebra"
+    course.id === "algebra-1"
+      ? [
+          ["Expression and equation fluency", "Solve real equations and inequalities with meaningful signs, inverse operations, and checks."],
+          ["Models and functions", "Graph lines, solve simultaneous constraints, and connect exponents, factoring, and quadratics to practical models."],
+          ["Algebra I capstone", "Compare competing pricing plans using equations, break-even analysis, and inequalities."],
+        ]
+      : course.id === "prealgebra"
       ? [
           ["Number fluency", "Build place value, calculation sense, fractions, decimals, ratios, and percentages through worked everyday examples."],
           ["Algebra foundations", "Use negative numbers, powers, expressions, equations, and inequalities to describe and solve practical situations."],

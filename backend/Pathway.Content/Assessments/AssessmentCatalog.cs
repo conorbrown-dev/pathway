@@ -8,6 +8,63 @@ public static class AssessmentCatalog
 {
     private static readonly ModuleAssessment[] All =
     [
+        // Algebra I checkpoints follow the instruction in each module.
+        new("algebra-1", "algebra-language-1", "Algebra language checkpoint", [
+            new("meaning-of-expressions", "In 5 + 2x, which is the coefficient of x?", ["2", "5", "x"], "2", "algebra1-meaning-of-expressions"),
+            new("like-terms", "Which terms are like terms?", ["3a and 7a", "3a and 3a²", "3a and 7"], "3a and 7a", "algebra1-like-terms"),
+            new("distribution-properties", "What equals −2(a − 3)?", ["−2a + 6", "−2a − 3", "2a − 6"], "−2a + 6", "algebra1-distribution-properties"),
+        ]),
+        new("algebra-1", "equations-2", "Equations checkpoint", [
+            new("multistep-equations", "What should you do to both sides of 3x + 5 = 17 first?", ["Subtract 5", "Divide by 3", "Add 5"], "Subtract 5", "algebra1-multistep-equations"),
+            new("both-sides-equations", "Which equation has no solution?", ["x+2 = x+3", "2x=8", "x+2=x+2"], "x+2 = x+3", "algebra1-both-sides-equations"),
+            new("rearrange-formulas", "If d = rt, which rearrangement finds time?", ["t=d/r", "t=d×r", "t=r/d"], "t=d/r", "algebra1-rearrange-formulas"),
+        ]),
+        new("algebra-1", "inequalities-3", "Inequalities checkpoint", [
+            new("inequality-operations", "What must happen to < after dividing both sides by −2?", ["It reverses to >", "It stays <", "It becomes ="], "It reverses to >", "algebra1-inequality-operations"),
+            new("compound-inequalities", "Which describes temperatures from 1 through 4 inclusive?", ["1 ≤ T ≤ 4", "1 < T < 4", "T ≤ 1 or T ≥ 4"], "1 ≤ T ≤ 4", "algebra1-compound-inequalities"),
+            new("inequality-word-models", "What does r ≤ 5 permit?", ["5 or fewer rides", "More than 5 rides", "Only exactly 5"], "5 or fewer rides", "algebra1-inequality-word-models"),
+        ]),
+        new("algebra-1", "linear-graphs-4", "Linear graphs checkpoint", [
+            new("slope-from-points", "A horizontal line has what slope?", ["0", "undefined", "1"], "0", "algebra1-slope-from-points"),
+            new("slope-intercept", "What is the y-intercept in y=4x−7?", ["−7", "4", "7"], "−7", "algebra1-slope-intercept"),
+            new("parallel-perpendicular", "A line parallel to y=−5x+2 has which slope?", ["−5", "5", "1/5"], "−5", "algebra1-parallel-perpendicular"),
+        ]),
+        new("algebra-1", "systems-5", "Systems checkpoint", [
+            new("systems-graphing", "What does one intersection of two lines represent?", ["A solution satisfying both equations", "A slope always equal to 1", "Two independent outputs"], "A solution satisfying both equations", "algebra1-systems-graphing"),
+            new("systems-substitution", "Substitution is easiest when one equation is already solved for what?", ["A variable", "A decimal only", "The origin"], "A variable", "algebra1-systems-substitution"),
+            new("systems-elimination", "Why add equations with +y and −y?", ["The y terms cancel", "The x terms always disappear", "The equations become inequalities"], "The y terms cancel", "algebra1-systems-elimination"),
+        ]),
+        new("algebra-1", "exponents-and-growth-6", "Exponents and growth checkpoint", [
+            new("exponent-rules", "What is x⁻² for nonzero x?", ["1/x²", "−x²", "x/2"], "1/x²", "algebra1-exponent-rules"),
+            new("scientific-notation", "What is 4.2×10³ as a whole number?", ["4200", "420", "0.0042"], "4200", "algebra1-scientific-notation"),
+            new("exponential-functions", "What defines exponential growth?", ["Equal multiplicative factor each interval", "Equal additive change each interval", "A straight horizontal line"], "Equal multiplicative factor each interval", "algebra1-exponential-functions"),
+        ]),
+        new("algebra-1", "polynomials-7", "Polynomials checkpoint", [
+            new("polynomial-terms", "What is the degree of 7x⁴+3x²+1?", ["4", "2", "7"], "4", "algebra1-polynomial-terms"),
+            new("add-polynomials", "What is the coefficient of x² in (x²+2x)+(3x²−x)?", ["4", "3", "2"], "4", "algebra1-add-polynomials"),
+            new("multiply-polynomials", "Which is (a+b)²?", ["a²+2ab+b²", "a²+b²", "a²−b²"], "a²+2ab+b²", "algebra1-multiply-polynomials"),
+        ]),
+        new("algebra-1", "factoring-8", "Factoring checkpoint", [
+            new("greatest-common-factor", "What is the GCF of 8x² and 12x?", ["4x", "4x²", "2"], "4x", "algebra1-greatest-common-factor"),
+            new("factor-trinomials", "Which factors x²+6x+8?", ["(x+2)(x+4)", "(x+1)(x+8)", "(x+3)(x+3)"], "(x+2)(x+4)", "algebra1-factor-trinomials"),
+            new("difference-of-squares", "Which is a factorization of x²−9?", ["(x−3)(x+3)", "(x−3)²", "(x+9)(x−1)"], "(x−3)(x+3)", "algebra1-difference-of-squares"),
+        ]),
+        new("algebra-1", "quadratic-functions-9", "Quadratic functions checkpoint", [
+            new("parabola-graphs", "Which vertex belongs to y=(x−4)²+1?", ["(4,1)", "(−4,1)", "(4,−1)"], "(4,1)", "algebra1-parabola-graphs"),
+            new("complete-square", "What completes x²+8x+___ to a perfect square?", ["16", "8", "4"], "16", "algebra1-complete-square"),
+            new("quadratic-formula", "What does a negative discriminant mean for real-number roots?", ["No real roots", "Exactly two real roots", "Exactly one repeated real root"], "No real roots", "algebra1-quadratic-formula"),
+        ]),
+        new("algebra-1", "functions-10", "Functions checkpoint", [
+            new("function-notation", "What is a function's domain?", ["The allowed inputs", "Only the positive outputs", "The graph's slope"], "The allowed inputs", "algebra1-function-notation"),
+            new("function-transformations", "Which moves f(x) right by 3?", ["f(x−3)", "f(x+3)", "f(x)+3"], "f(x−3)", "algebra1-function-transformations"),
+            new("piecewise-functions", "What does |−7| equal?", ["7", "−7", "0"], "7", "algebra1-piecewise-functions"),
+        ]),
+        new("algebra-1", "applications-and-capstone-11", "Applications and capstone checkpoint", [
+            new("choose-math-model", "Which process is exponential?", ["Multiplies by 1.2 each week", "Adds $5 each week", "Stays at $100"], "Multiplies by 1.2 each week", "algebra1-choose-math-model"),
+            new("model-from-data", "What is extrapolation?", ["Predicting outside observed data", "Reading a measured point", "Finding the median"], "Predicting outside observed data", "algebra1-model-from-data"),
+            new("algebra-capstone", "Which plan is cheaper *after* the crossing point when A has lower per-page cost?", ["Plan A", "Plan B", "They remain tied"], "Plan A", "algebra1-algebra-capstone"),
+        ]),
+
         new("prealgebra", "arithmetic-foundations-1", "Arithmetic foundations checkpoint", [
             new("places", "In 6,205, what does the 2 represent?", ["Two hundreds", "Two tens", "Two thousands"], "Two hundreds", "prealgebra-place-value"),
             new("groups", "What is 7 × 9?", ["63", "16", "79"], "63", "prealgebra-four-operations"),
