@@ -53,6 +53,18 @@ public class MathMasteryTests
     }
 
     [Fact]
+    public void Method_specific_lessons_assess_their_actual_method()
+    {
+        var perpendicular = MathMasteryCatalog.Create("algebra1-parallel-perpendicular", 15);
+        Assert.Contains(perpendicular, question => question.Prompt.Contains("perpendicular slope"));
+        var formula = MathMasteryCatalog.Create("algebra1-quadratic-formula", 15);
+        Assert.Contains(formula, question => question.Prompt.Contains("discriminant"));
+        var circle = MathMasteryCatalog.Create("math-unit-circle", 15);
+        Assert.Contains(circle, question => question.Prompt.Contains("unit circle"));
+        Assert.Contains(circle, question => question.CorrectChoice == "(-1,0)");
+    }
+
+    [Fact]
     public void Math_mastery_requires_seven_of_eight_and_rejects_invalid_lessons()
     {
         Assert.Equal(8, MathMasteryCatalog.QuestionCount);
