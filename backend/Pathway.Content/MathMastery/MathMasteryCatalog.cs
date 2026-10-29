@@ -98,7 +98,7 @@ public static class MathMasteryCatalog
         MathMasteryQuestion N(string prompt, double answer, string? unit = null)
             => new(id, skill, "Numeric", prompt, unit, [], answer, null);
         MathMasteryQuestion C(string prompt, string answer, string wrong1, string wrong2)
-            => new(id, skill, "Choice", prompt, null, [answer, wrong1, wrong2].OrderBy(_ => r.Next()).ToArray(), null, answer);
+            => new(id, skill, "Choice", prompt, null, new[] { answer, wrong1, wrong2 }.OrderBy(_ => r.Next()).ToArray(), null, answer);
 
         switch (family)
         {

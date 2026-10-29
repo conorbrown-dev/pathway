@@ -436,7 +436,7 @@ function App() {
         detail: next.passed ? "passed" : "failed",
       });
       if (next.passed) {
-        if (course.languageId !== "math") setCompleted((current) => {
+        if (course?.languageId !== "math") setCompleted((current) => {
           const updated = [...new Set([...current, lesson.slug])];
           localStorage.setItem(
             progressStorageKey(progressOwner),
