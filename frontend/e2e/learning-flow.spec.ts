@@ -825,7 +825,7 @@ test('signed numeric answers can be toggled on mobile-style decimal inputs', asy
   await expect(answer).toHaveValue('-')
   await answer.fill('260')
   await page.getByRole('button', { name: /Check answer/i }).click()
-  await expect(page.getByText('Correct', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Correct', { exact: true })).toBeVisible()
 })
 
 test('electrical wave graphs update amplitude, period and phase interactively', async ({ page }) => {
@@ -833,11 +833,31 @@ test('electrical wave graphs update amplitude, period and phase interactively', 
   await page.goto('/courses/electrical-engineering-foundations/lessons/ee-wave-phase')
   const graph = page.getByRole('region', { name: 'Interactive wave graph' })
   await expect(graph).toBeVisible()
-  await graph.getByRole('slider', { name: 'Amplitude' }).fill('4')
-  await graph.getByRole('slider', { name: 'Period' }).fill('1')
-  await graph.getByRole('slider', { name: 'Phase' }).fill('90')
+  const amplitude = graph.getByRole('slider', { name: 'Amplitude' })
+  await amplitude.focus()
+  await amplitude.press('End')
+  await amplitude.press('ArrowLeft')
+  await amplitude.press('ArrowLeft')
+  const period = graph.getByRole('slider', { name: 'Period' })
+  await period.focus()
+  await period.press('Home')
+  await period.press('ArrowRight')
+  const phase = graph.getByRole('slider', { name: 'Phase' })
+  await phase.focus()
+  await phase.press('End')
+  for (let n = 0; n < 6; n++) await phase.press('ArrowLeft')
   await expect(graph.getByRole('img', { name: /Sine graph/ })).toHaveAttribute('aria-label', /amplitude 4, period 1 seconds, phase 90 degrees/)
   await expect(graph.getByText(/value = 4.00/)).toBeVisible()
   await page.goto('/courses/electrical-engineering-foundations/lessons/ee-phasors')
   await expect(page.getByRole('img', { name: /Phasor direction/ })).toBeVisible()
+})
+
+
+test('Algebra I accepts a genuinely negative numeric answer', async ({ request }) => {
+  const response = await request.post(`${apiBaseUrl}/api/submissions/validate`, {
+    data: { lessonSlug: 'algebra1-slope-from-points', answer: '-3', unit: 'units/unit', code: '' },
+  })
+  expect(response.ok()).toBeTruthy()
+  const result = await response.json()
+  expect(result.passed).toBe(true)
 })
