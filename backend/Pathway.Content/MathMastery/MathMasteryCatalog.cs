@@ -81,9 +81,20 @@ public static class MathMasteryCatalog
         var random = new Random(seed);
         var questions = new MathMasteryQuestion[QuestionCount];
         for (var i = 0; i < questions.Length; i++)
-            questions[i] = CreateQuestion(slug, family, random, i);
-        if (questions.Select(q => q.Prompt).Distinct().Count() != questions.Length)
-            throw new InvalidOperationException("Generated duplicate mastery questions for " + slug);
+        {
+            // Variable values can occasionally collide; regenerate that one question rather than
+            // show repeated prompts or a multiple choice item with duplicate options.
+            MathMasteryQuestion? candidate = null;
+            for (var retry = 0; retry < 128; retry++)
+            {
+                var proposed = CreateQuestion(slug, family, random, i);
+                if (proposed.Choices.Distinct(StringComparer.Ordinal).Count() != proposed.Choices.Length) continue;
+                if (questions.Take(i).Any(previous => previous.Prompt == proposed.Prompt)) continue;
+                candidate = proposed;
+                break;
+            }
+            questions[i] = candidate ?? throw new InvalidOperationException("Insufficient unique mastery questions for " + slug);
+        }
         return questions;
     }
 
