@@ -71,6 +71,9 @@ public static class SubmissionEndpoints
             }
             : submission;
         await RecordAttempt(services, LearnerIdentity.Resolve(httpContext), recorded, validation.Passed, cancellationToken);
+        // Guided math problems are practice, not proof of mastery.
+        if (MathMasteryCatalog.IsMathLesson(lesson.Slug))
+            return Results.Ok(validation with { NextLessonSlug = null });
         return Results.Ok(validation);
     }
 
@@ -84,9 +87,9 @@ public static class SubmissionEndpoints
         if (factory is null || learnerId == LearnerIdentity.Anonymous) return;
         await using var database = await factory.CreateDbContextAsync(cancellationToken);
         database.Submissions.Add(new LearnerSubmission { LearnerId = learnerId, LessonSlug = submission.LessonSlug, Answer = submission.Answer, Code = submission.Code, Passed = passed });
-        if (passed && !await database.Progress.AnyAsync(item => item.LearnerId == learnerId && item.LessonSlug == submission.LessonSlug, cancellationToken))
+        if (passed && !MathMasteryCatalog.IsMathLesson(submission.LessonSlug) && !await database.Progress.AnyAsync(item => item.LearnerId == learnerId && item.LessonSlug == submission.LessonSlug, cancellationToken))
             database.Progress.Add(new LearnerProgress { LearnerId = learnerId, LessonSlug = submission.LessonSlug, CompletedAt = DateTimeOffset.UtcNow });
-        if (passed)
+        if (passed && !MathMasteryCatalog.IsMathLesson(submission.LessonSlug))
         {
             var existingReview = await database.ReviewSchedules.SingleOrDefaultAsync(item => item.LearnerId == learnerId && item.LessonSlug == submission.LessonSlug, cancellationToken);
             if (existingReview is null)

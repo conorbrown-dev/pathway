@@ -862,3 +862,24 @@ test('Algebra I accepts a genuinely negative numeric answer', async ({ request }
   const result = await response.json()
   expect(result.passed).toBe(true)
 })
+
+
+test('math practice grants feedback but only an eight-question mastery check unlocks progression', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('pathway-onboarding-complete', 'true')
+    localStorage.setItem('pathway-learner-id', 'mastery-e2e-unique-learner')
+  })
+  await page.goto('/courses/precalculus/lessons/math-negative-numbers')
+  const begin = page.getByRole('button', { name: 'Begin mastery check' })
+  await expect(begin).toBeDisabled()
+  await page.getByLabel('Numeric answer').fill('260')
+  await page.getByRole('button', { name: /Check answer/i }).click()
+  await expect(page.getByText('Correct', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Next lesson/i })).toHaveCount(0)
+  await expect(begin).toBeEnabled()
+  await begin.click()
+  await expect(page.getByRole('group', { name: /^Question/ })).toHaveCount(8)
+  await page.getByRole('button', { name: /Submit all 8 answers/i }).click()
+  await expect(page.getByRole('alert')).toContainText('Answer every question')
+  await expect(page.getByRole('button', { name: /Next lesson/i })).toHaveCount(0)
+})
