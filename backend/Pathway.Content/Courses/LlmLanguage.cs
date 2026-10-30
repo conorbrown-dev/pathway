@@ -1,3 +1,5 @@
+namespace Pathway.Content;
+
 static partial class Curriculum
 {
     // Module 5 of the AI & LLM course: how text becomes numbers. Unicode and UTF-8 bytes, byte-pair

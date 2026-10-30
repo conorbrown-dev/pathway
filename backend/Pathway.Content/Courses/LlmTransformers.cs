@@ -1,3 +1,5 @@
+namespace Pathway.Content;
+
 static partial class Curriculum
 {
     // Module 6 of the AI & LLM course: the transformer, piece by piece. Why fixed windows fail,
