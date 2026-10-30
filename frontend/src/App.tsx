@@ -113,6 +113,8 @@ const courseBadgeText = (course: { id: string; languageId: string }) =>
       ? "⚛"
       : course.languageId === "python"
         ? "Py"
+        : course.languageId === "sql-server"
+          ? "T-SQL"
         : course.languageId === "sqlite"
           ? "SQL"
           : course.languageId === "linux"
@@ -151,6 +153,7 @@ const courseBadgeColors: Record<string, [string, string]> = {
   "web-development-basics": ["#ef4444", "#b91c1c"],
   "tailwind-css": ["#0891b2", "#155e75"],
   sqlite: ["#3b82f6", "#1d4ed8"],
+  "sql-server": ["#dc2626", "#7f1d1d"],
   "linux-cli-bash-vim": ["#64748b", "#334155"],
   kubernetes: ["#8b5cf6", "#5b21b6"],
   "react-enterprise": ["#0284c7", "#075985"],
@@ -335,7 +338,7 @@ function App() {
   useEffect(() => {
     if (view === "home") document.title = "Pathway — Choose a course";
     else if (course)
-      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.id === "prealgebra" ? "Pre-algebra" : course.id === "algebra-1" ? "Algebra I" : course.languageId === "math" ? "Precalculus" : course.languageId === "llm" ? "How AI Works" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
+      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.id === "prealgebra" ? "Pre-algebra" : course.id === "algebra-1" ? "Algebra I" : course.languageId === "math" ? "Precalculus" : course.languageId === "llm" ? "How AI Works" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sql-server" ? "SQL Server" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
   }, [course, view]);
   const notify = (message: string) => {
     setToast(message);
@@ -905,6 +908,7 @@ function Onboarding({
   const gitSelected = selectedCourseId === "git-cli";
   const webBasicsSelected = selectedCourseId === "web-development-basics";
   const sqliteSelected = selectedCourseId === "sqlite";
+  const sqlServerSelected = selectedCourseId === "sql-server";
   const linuxSelected = selectedCourseId === "linux-cli-bash-vim";
   const kubernetesSelected = selectedCourseId === "kubernetes";
   const reactLiteSelected = selectedCourseId === "react-lite";
@@ -1048,6 +1052,18 @@ function Onboarding({
                   <small className="mt-1 block text-xs text-[#aaa3b6]">HTML · CSS · JavaScript · TypeScript · HTTP</small>
                 </span>
                 {webBasicsSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
+              </button>
+              <button
+                aria-label="Select SQL Server course"
+                onClick={() => onSelectCourse("sql-server")}
+                className={`track-option mt-3 flex w-full items-center gap-4 rounded-xl p-4 text-left ${sqlServerSelected ? "ring-1 ring-[#bd87ff]" : ""}`}
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#b3322f] font-mono text-[10px] font-bold text-white">T-SQL</span>
+                <span>
+                  <strong className="block text-sm text-white">SQL Server: T-SQL and the database engine</strong>
+                  <small className="mt-1 block text-xs text-[#aaa3b6]">T-SQL · SQL Server 2025 · SSMS</small>
+                </span>
+                {sqlServerSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
               </button>
               <button
                 aria-label="Select SQLite course"
@@ -2125,6 +2141,21 @@ function WorkspacePanel({
           [
             "Terminal-only capstone",
             "Build a robust support-bundle script and demonstrate practical Vim editing without leaving the terminal workflow.",
+          ],
+        ]
+      : course.id === "sql-server"
+      ? [
+          [
+            "Query with confidence",
+            "Write T-SQL that selects, filters, sorts, summarises and joins, and handles NULL on purpose.",
+          ],
+          [
+            "Design data that protects itself",
+            "Use keys, constraints, transactions and views so the database refuses bad data.",
+          ],
+          [
+            "Run it for real",
+            "Read execution plans, add indexes, reason about locking, and look after a SQL Server instance, then present how it all works.",
           ],
         ]
       : course.id === "sqlite"

@@ -1,7 +1,7 @@
 # SQL Server: T-SQL and the database engine
 
-Course id `sql-server` · languageId `sqlserver` · lessons in `backend/Pathway.Content/Courses/SqlServer*.cs` · graders in `sandbox-broker/src/sql-graders/` (one file per lesson slug) · engine in `sandbox-broker/src/sql-graders/_tsql.py`
-Status: engine and first grader merged on branch `sql-server-course-engine`; lessons not yet authored.
+Course id `sql-server` · languageId `sql-server` · lessons in `backend/Pathway.Content/Courses/SqlServer*.cs` (lesson slugs start `sqlserver-`) · graders in `sandbox-broker/src/sql-graders/` (one file per lesson slug) · engine in `sandbox-broker/src/sql-graders/_tsql.py`
+Status: modules 1 to 3 (12 lessons) authored; modules 4 onward to follow as stacked PRs.
 Last reviewed 2026-10-30
 
 ## Who it's for
@@ -34,20 +34,24 @@ SELECT with TOP, OFFSET/FETCH, joins, GROUP BY/HAVING, subqueries, CTEs (includi
 
 DECIMAL is stored as a floating-point value, divide-by-zero returns NULL instead of an error, integer AVG is not truncated like SQL Server's, IDENTITY_INSERT and MAXRECURSION are approximated, and collation is always case-insensitive. Lessons that touch these say so and tell the learner what the real engine does.
 
-## Planned modules
+## Modules
 
-| Module | Lessons |
-| --- | --- |
-| Foundations | What a relational database is · tables, rows, keys · installing SQL Server Developer and SSMS (lab) |
-| Querying | SELECT and WHERE · NULL logic · sorting and paging · expressions and functions |
-| Combining data | Joins · set operators · subqueries · CTEs |
-| Summarising | Aggregates · GROUP BY and HAVING · window functions |
-| Changing data | INSERT, UPDATE, DELETE · transactions · constraints |
-| Designing | Normalisation · data types · keys and relationships · views |
-| Performance | Indexes · execution plans (lab) · statistics · query tuning (lab) |
-| Concurrency | Locking and isolation (lab) · deadlocks (lab) |
-| Operating | Backups and restore (lab) · security (lab) · SQL Server Agent (lab) |
-| Capstone | Design and ship a small database, then present it |
+| Module | Lessons | State |
+| --- | --- | --- |
+| SQL Server foundations | What a relational database is · tables, data types, keys and constraints · lab: run SQL Server Developer | written |
+| Querying | SELECT and WHERE · NULL and three-valued logic · ORDER BY, TOP and paging · expressions, functions and CASE · aggregates, GROUP BY and HAVING | written |
+| Combining data | Joins · UNION, INTERSECT and EXCEPT · subqueries · CTEs | written |
+| Summarising | Window functions · ranking and running totals · pivoting | planned |
+| Changing data | INSERT, UPDATE, DELETE · transactions · constraints in depth | planned |
+| Designing | Normalisation · keys and relationships · views | planned |
+| Performance | Indexes · execution plans (lab) · statistics · query tuning (lab) | planned |
+| Concurrency | Locking and isolation (lab) · deadlocks (lab) | planned |
+| Operating | Backups and restore (lab) · security (lab) · SQL Server Agent (lab) · stored procedures (lab) | planned |
+| Capstone | Design and ship a small database, then present it | planned |
+
+Order of ideas matters: aggregates sit in Querying, before joins, subqueries and CTEs, because those later lessons use AVG, SUM and GROUP BY in their examples. NULL logic has its own lesson before the first exercise that needs it.
+
+Every code lesson's grader also re-runs the learner's query on a second, different data set, so an answer that hard-codes the example rows fails.
 
 About 40 lessons in total.
 

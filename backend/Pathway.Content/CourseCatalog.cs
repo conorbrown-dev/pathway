@@ -20,6 +20,7 @@ public static class CourseCatalog
         .Concat(Curriculum.AlgebraOneLessons)
         .Concat(Curriculum.PrecalculusLessons)
         .Concat(Curriculum.LlmLessons)
+        .Concat(Curriculum.SqlServerLessons)
         .Concat(Curriculum.WebBasicsLessons)
         .Concat(Curriculum.TailwindLessons)
         .Concat(Curriculum.SQLiteLessons)
@@ -40,6 +41,7 @@ public static class CourseCatalog
     public static readonly Course AlgebraOneCourse = BuildCourse("algebra-1", "Algebra I: from equations to functions", "math", "Algebra I", "Linear models · systems · polynomials · quadratics", "2026-10-28", Curriculum.AlgebraOneLessons);
     public static readonly Course PrecalculusCourse = BuildCourse("precalculus", "Precalculus: math you can picture", "math", "Precalculus", "Functions · growth · trigonometry · real-world models", "2026-10-25", Curriculum.PrecalculusLessons);
     public static readonly Course LlmCourse = BuildCourse("ai-llm-engineering", "How AI works: LLMs end to end", "llm", "AI & LLMs", "Math · neural networks · transformers · training · your own model in opencode", "2026-10-26", Curriculum.LlmLessons);
+    public static readonly Course SqlServerCourse = BuildCourse("sql-server", "SQL Server: T-SQL and the database engine", "sql-server", "T-SQL (SQL Server 2025)", "SQL Server Developer · SSMS", "2026-10-30", Curriculum.SqlServerLessons);
     public static readonly Course GitCliCourse = BuildCourse("git-cli", "Git CLI", "git", "Git CLI", "Repositories · branches · remotes · recovery", "2026-09-26", Curriculum.GitCliLessons);
     public static readonly Course WebBasicsCourse = BuildCourse("web-development-basics", "Web Development Basics 2026", "web", "Web Platform 2026", "HTML · CSS · JavaScript · TypeScript · HTTP", "2026-09-26", Curriculum.WebBasicsLessons);
     public static readonly Course TailwindCourse = BuildCourse("tailwind-css", "Tailwind CSS 2026: from utilities to Pathway", "tailwind", "Tailwind CSS v4", "Vite · Responsive UI · Design tokens", "2026-10-12", Curriculum.TailwindLessons);
@@ -61,6 +63,7 @@ public static class CourseCatalog
         [AlgebraOneCourse.Id] = AlgebraOneCourse,
         [PrecalculusCourse.Id] = PrecalculusCourse,
         [LlmCourse.Id] = LlmCourse,
+        [SqlServerCourse.Id] = SqlServerCourse,
         [GitCliCourse.Id] = GitCliCourse,
         [WebBasicsCourse.Id] = WebBasicsCourse,
         [TailwindCourse.Id] = TailwindCourse,
@@ -83,6 +86,7 @@ public static class CourseCatalog
         new(AlgebraOneCourse.Id, AlgebraOneCourse.Title, AlgebraOneCourse.LanguageId, AlgebraOneCourse.LanguageVersion, AlgebraOneCourse.FrameworkVersion, true),
         new(PrecalculusCourse.Id, PrecalculusCourse.Title, PrecalculusCourse.LanguageId, PrecalculusCourse.LanguageVersion, PrecalculusCourse.FrameworkVersion, true),
         new(LlmCourse.Id, LlmCourse.Title, LlmCourse.LanguageId, LlmCourse.LanguageVersion, LlmCourse.FrameworkVersion, true),
+        new(SqlServerCourse.Id, SqlServerCourse.Title, SqlServerCourse.LanguageId, SqlServerCourse.LanguageVersion, SqlServerCourse.FrameworkVersion, true),
         new(GitCliCourse.Id, GitCliCourse.Title, GitCliCourse.LanguageId, GitCliCourse.LanguageVersion, GitCliCourse.FrameworkVersion, true),
         new(WebBasicsCourse.Id, WebBasicsCourse.Title, WebBasicsCourse.LanguageId, WebBasicsCourse.LanguageVersion, WebBasicsCourse.FrameworkVersion, true),
         new(TailwindCourse.Id, TailwindCourse.Title, TailwindCourse.LanguageId, TailwindCourse.LanguageVersion, TailwindCourse.FrameworkVersion, true),
@@ -95,7 +99,6 @@ public static class CourseCatalog
         new(PythonCourse.Id, PythonCourse.Title, PythonCourse.LanguageId, PythonCourse.LanguageVersion, PythonCourse.FrameworkVersion, true),
         new(RustCourse.Id, RustCourse.Title, RustCourse.LanguageId, RustCourse.LanguageVersion, RustCourse.FrameworkVersion, true),
         new(ClaudeCourse.Id, ClaudeCourse.Title, ClaudeCourse.LanguageId, ClaudeCourse.LanguageVersion, ClaudeCourse.FrameworkVersion, true),
-        new("sql-server", "SQL Server", "sql-server", "Coming Soon", "T-SQL · SQL Server · SSMS", false),
         new("mysql", "MySQL", "mysql", "Coming Soon", "MySQL SQL · MySQL Server · Workbench", false),
         new("postgresql", "PostgreSQL", "postgresql", "Coming Soon", "PostgreSQL SQL · PostgreSQL · pgAdmin", false),
         new("networking-fundamentals", "Networking Fundamentals", "networking", "Coming Soon", "Packets · IP · routing · ports", false),
