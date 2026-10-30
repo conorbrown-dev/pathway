@@ -1,3 +1,5 @@
+namespace Pathway.Content;
+
 static partial class Curriculum
 {
     // Module 8 of the AI & LLM course: LLMs inside real software. Inference memory and quantization,

@@ -1,3 +1,5 @@
+namespace Pathway.Content;
+
 static partial class Curriculum
 {
     // Module 7 of the AI & LLM course: how frontier models are made. Pretraining data and compute,
