@@ -1,10 +1,11 @@
 // Runs every reference solution through its real fixture inside a built sandbox image, the way
 // production grades it: as the learner user (via as-learner), with no network.
 //
-//   node scripts/fixtures-in-image.mjs <docker-image> [rust|python]
+//   node scripts/fixtures-in-image.mjs <docker-image> [rust|python|sql]
 //
 // rust (the default) uses test/rust-solutions in the rust image; python uses test/python-solutions
-// (the AI & LLM course graders) in the tools image. `<slug>.pass.*` / `<slug>.*.pass.*` must pass
+// (the AI & LLM course graders) in the tools image; sql uses test/sql-solutions (the SQL Server
+// course's T-SQL graders) in the tools image. `<slug>.pass.*` / `<slug>.*.pass.*` must pass
 // and `<slug>.*.fail.*` must fail. Exits non-zero on any mismatch, and reports each run's duration
 // against the sandbox's per-command limit.
 import { spawnSync } from 'node:child_process'
@@ -16,9 +17,9 @@ import { evaluationResult, fixtureFor, LEARNER_WRAPPER } from '../src/evaluator.
 
 const image = process.argv[2]
 const kind = process.argv[3] ?? 'rust'
-const SUITES = { rust: { dir: 'rust-solutions', ext: '.rs' }, python: { dir: 'python-solutions', ext: '.py' } }
+const SUITES = { rust: { dir: 'rust-solutions', ext: '.rs' }, python: { dir: 'python-solutions', ext: '.py' }, sql: { dir: 'sql-solutions', ext: '.sql' } }
 if (!image || !SUITES[kind]) {
-  console.error('usage: node scripts/fixtures-in-image.mjs <docker-image> [rust|python]')
+  console.error('usage: node scripts/fixtures-in-image.mjs <docker-image> [rust|python|sql]')
   process.exit(2)
 }
 const { dir, ext } = SUITES[kind]

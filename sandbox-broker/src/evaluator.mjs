@@ -53,6 +53,36 @@ function llmFixture(lessonSlug, code) {
   }
 }
 
+// SQL Server course: learner T-SQL is parsed as T-SQL and run on SQLite by the engine in
+// sql-graders/_tsql.py (see docs/sqlserver-curriculum.md for the supported subset). Each lesson's
+// grader is a Python file named after the slug; the engine is prepended so the script runs
+// standalone under `python3 -I` in the tools image. A grader declares its test count in a
+// `# tests: N` comment.
+const SQL_GRADER_DIR = new URL('./sql-graders/', import.meta.url)
+const SQL_ENGINE = readFileSync(new URL('_tsql.py', SQL_GRADER_DIR), 'utf8')
+const SQL_GRADERS = Object.fromEntries(
+  readdirSync(SQL_GRADER_DIR)
+    .filter(name => name.endsWith('.py') && !name.startsWith('_'))
+    .map(name => {
+      const source = readFileSync(new URL(name, SQL_GRADER_DIR), 'utf8')
+      const tests = Number(/^# tests: (\d+)$/m.exec(source)?.[1] ?? 1)
+      return [name.slice(0, -3), { source, tests }]
+    }),
+)
+
+/** Lesson slugs graded by a T-SQL grader in sql-graders/. */
+export const sqlGradedSlugs = () => Object.keys(SQL_GRADERS).sort()
+
+function sqlFixture(lessonSlug, code) {
+  const grader = SQL_GRADERS[lessonSlug]
+  return {
+    files: { 'grader.py': `${SQL_ENGINE}\n\n# ---- ${lessonSlug} ----\n${grader.source}`, 'submission.sql': code },
+    command: ['python3', '-I', '-B', '/workspace/grader.py'],
+    tests: grader.tests,
+    runtime: 'python',
+  }
+}
+
 export function validateRequest(value) {
   if (!value || typeof value.lessonSlug !== 'string' || typeof value.code !== 'string') return 'lessonSlug and code are required.'
   if (value.lessonSlug.length > 200 || value.code.length === 0 || Buffer.byteLength(value.code, 'utf8') > MAX_CODE_BYTES) return 'Code must be between 1 and 50,000 bytes.'
@@ -221,6 +251,7 @@ declare module 'vitest' {
 export function fixtureFor(lessonSlug, code) {
   if (Object.hasOwn(KUBE_TESTS, lessonSlug)) return kubeFixture(lessonSlug, code)
   if (Object.hasOwn(LLM_GRADERS, lessonSlug)) return llmFixture(lessonSlug, code)
+  if (Object.hasOwn(SQL_GRADERS, lessonSlug)) return sqlFixture(lessonSlug, code)
   switch (lessonSlug) {
     case 'python-functions':
       return {
