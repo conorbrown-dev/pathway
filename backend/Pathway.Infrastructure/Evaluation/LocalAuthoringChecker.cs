@@ -110,6 +110,27 @@ public static class LocalAuthoringChecker
             };
             return new ValidationResult(kubePassed, kubePassed ? 3 : 0, 3, kubePassed ? "Your Kubernetes manifest or command sequence passes the local authoring checks." : lesson.Exercise.Hint, kubePassed ? lesson.NextSlug : null, CodeReviewer.Review(lesson, code));
         }
+        if (lesson.Slug.StartsWith("sqlserver-", StringComparison.Ordinal))
+        {
+            // Local authoring only: look for the T-SQL constructs each lesson teaches. Deployed lessons run
+            // the real grader (sandbox-broker/src/sql-graders), which parses the T-SQL and checks the results.
+            var normalized = code.ToUpperInvariant();
+            var sqlServerPassed = lesson.Slug switch
+            {
+                "sqlserver-tables-keys" => normalized.Contains("CREATE TABLE") && normalized.Contains("BOOKS") && normalized.Contains("PRIMARY KEY") && normalized.Contains("UNIQUE") && normalized.Contains("NOT NULL"),
+                "sqlserver-select-where" => normalized.Contains("SELECT") && normalized.Contains("WHERE") && normalized.Contains("TEA"),
+                "sqlserver-null-logic" => normalized.Contains("SELECT") && normalized.Contains("IS NULL") && normalized.Contains("ORDER BY"),
+                "sqlserver-sorting-paging" => normalized.Contains("ORDER BY") && normalized.Contains("OFFSET") && normalized.Contains("FETCH"),
+                "sqlserver-expressions-functions" => normalized.Contains("CASE") && normalized.Contains("UPPER") && normalized.Contains("COALESCE"),
+                "sqlserver-aggregates-group-by" => normalized.Contains("GROUP BY") && normalized.Contains("HAVING") && normalized.Contains("COUNT") && normalized.Contains("SUM"),
+                "sqlserver-joins" => normalized.Contains("LEFT") && normalized.Contains("JOIN") && normalized.Contains(" ON "),
+                "sqlserver-set-operators" => normalized.Contains("EXCEPT"),
+                "sqlserver-subqueries" => normalized.Contains("AVG") && normalized.Split("SELECT").Length > 2,
+                "sqlserver-ctes" => normalized.Contains("WITH") && normalized.Contains("CUSTOMERTOTALS") && normalized.Contains("AVG"),
+                _ => false
+            };
+            return new ValidationResult(sqlServerPassed, sqlServerPassed ? 2 : 0, 2, sqlServerPassed ? "Your T-SQL uses the constructs this lesson teaches. Deployed lessons run the full grader in the sandbox." : lesson.Exercise.Hint, sqlServerPassed ? lesson.NextSlug : null, CodeReviewer.Review(lesson, code));
+        }
         if (lesson.Slug.StartsWith("sqlite-", StringComparison.Ordinal))
         {
             var normalized = code.ToUpperInvariant();

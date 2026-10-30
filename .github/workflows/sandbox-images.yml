@@ -15,6 +15,8 @@ on:
       - 'sandbox-broker/images/**'
       - 'sandbox-broker/src/evaluator.mjs'
       - 'sandbox-broker/src/llm-graders/**'
+      - 'sandbox-broker/src/sql-graders/**'
+      - 'sandbox-broker/test/sql-solutions/**'
       - 'sandbox-broker/test/rust-solutions/**'
       - 'sandbox-broker/test/python-solutions/**'
       - 'sandbox-broker/scripts/**'
@@ -95,6 +97,8 @@ jobs:
           if [ "${{ matrix.image }}" = tools ]; then
             # Every AI & LLM course grader against its pass/fail reference solutions, on the image's Python.
             node sandbox-broker/scripts/fixtures-in-image.mjs sandbox-tools:ci python
+            # Every SQL Server course grader (T-SQL run on SQLite) against its pass/fail solutions.
+            node sandbox-broker/scripts/fixtures-in-image.mjs sandbox-tools:ci sql
           fi
 
       - name: Mark the image published

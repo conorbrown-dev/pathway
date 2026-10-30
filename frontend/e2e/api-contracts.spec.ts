@@ -36,7 +36,7 @@ test.describe('public API contract', () => {
       expect.objectContaining({ id: 'csharp-dotnet', available: true }),
       expect.objectContaining({ id: 'python-web', available: true }),
       expect.objectContaining({ id: 'rust-systems', available: true }),
-      expect.objectContaining({ id: 'sql-server', available: false }),
+      expect.objectContaining({ id: 'sql-server', available: true }),
       expect.objectContaining({ id: 'mysql', available: false }),
       expect.objectContaining({ id: 'postgresql', available: false }),
       expect.objectContaining({ id: 'networking-fundamentals', available: false }),
@@ -61,7 +61,7 @@ test.describe('public API contract', () => {
     expect((await request.post(`${apiBaseUrl}/api/submissions/validate`, { data: { lessonSlug: 'not-a-lesson', answer: 'anything' } })).status()).toBe(404)
   })
 
-  for (const courseId of ['computing-foundations', 'electrical-engineering-foundations', 'precalculus', 'ai-llm-engineering', 'git-cli', 'web-development-basics', 'sqlite', 'linux-cli-bash-vim', 'react-lite', 'react-enterprise', 'csharp-dotnet', 'python-web', 'rust-systems']) {
+  for (const courseId of ['computing-foundations', 'electrical-engineering-foundations', 'precalculus', 'ai-llm-engineering', 'git-cli', 'web-development-basics', 'sqlite', 'linux-cli-bash-vim', 'react-lite', 'react-enterprise', 'csharp-dotnet', 'python-web', 'rust-systems', 'sql-server']) {
     test(`${courseId} has contiguous lessons and representative next-lesson links`, async ({ request }) => {
       const courseResponse = await request.get(`${apiBaseUrl}/api/courses/${courseId}`)
       await expect(courseResponse).toBeOK()
