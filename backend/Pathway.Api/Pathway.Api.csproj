@@ -1,15 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
+  <!-- HTTP host: startup, auth, rate limits, and one folder per feature under Features/. -->
   <ItemGroup>
     <InternalsVisibleTo Include="Pathway.Api.Tests" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../Pathway.Domain/Pathway.Domain.csproj" />
+    <ProjectReference Include="../Pathway.Content/Pathway.Content.csproj" />
+    <ProjectReference Include="../Pathway.Infrastructure/Pathway.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
   </ItemGroup>
 </Project>

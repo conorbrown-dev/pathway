@@ -5,6 +5,10 @@ import { ExperienceHub } from "./ExperienceHub";
 import { getAnonymousLearnerId, trackActivity, trackActivityOnce } from "./analytics";
 import { authConfigured, initializeAuth, login, logout as signOut, refreshToken } from "./auth";
 import { parseLessonBody, parseLessonInline } from "./lessonBody";
+import { CalculatorButton, CalculatorPanel, calculatorProfileFor } from "./calculator/Calculator";
+import { toggleNumericSign } from "./numericAnswer";
+import { WavePlayground } from "./wave/WavePlayground";
+import { MathMasteryPanel } from "./math/MathMasteryPanel";
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,13 +21,16 @@ import {
   Code2,
   Flame,
   FolderKanban,
+  LayoutGrid,
   LockKeyhole,
   LogIn,
   LogOut,
+  Menu,
   Play,
   RotateCcw,
   Sparkles,
   UserRound,
+  X,
 } from "lucide-react";
 
 type Choice = { id: string; text: string };
@@ -96,7 +103,11 @@ type CourseCatalogItem = {
   available: boolean;
 };
 const courseBadgeText = (course: { id: string; languageId: string }) =>
-  course.id === "react-lite"
+  course.id === "algebra-1"
+    ? "x²"
+    : course.id === "prealgebra"
+    ? "a+b"
+    : course.id === "react-lite"
     ? "⚛L"
     : course.languageId === "react"
       ? "⚛"
@@ -216,6 +227,12 @@ function App() {
   );
   const requestedLessonRef = useRef<string | null>(initialLocation.lessonSlug);
   const [routeVersion, setRouteVersion] = useState(0);
+  // The base URL is the course catalogue, not a redirect to the last course. The last
+  // course is remembered only to offer "Continue" on that page.
+  const [view, setView] = useState<"home" | "course">(() =>
+    initialLocation.courseId ? "course" : "home",
+  );
+  const [navOpen, setNavOpen] = useState(false);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [answer, setAnswer] = useState("");
   const [unit, setUnit] = useState("");
@@ -239,6 +256,7 @@ function App() {
     () => !localStorage.getItem("pathway-onboarding-complete"),
   );
   const [workspace, setWorkspace] = useState<Workspace>("learn");
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
   useEffect(() => {
     trackActivityOnce("session_start", { eventType: "session_start" });
   }, []);
@@ -269,9 +287,10 @@ function App() {
     [],
   );
   useEffect(() => {
-    if (course)
-      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.languageId === "math" ? "Precalculus" : course.languageId === "llm" ? "How AI Works" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
-  }, [course]);
+    if (view === "home") document.title = "Pathway — Choose a course";
+    else if (course)
+      document.title = `Pathway — ${course.languageId === "claude" ? "Claude Engineering" : course.languageId === "computing" ? "Computing Foundations" : course.languageId === "electrical-engineering" ? "Electrical Engineering" : course.id === "prealgebra" ? "Pre-algebra" : course.id === "algebra-1" ? "Algebra I" : course.languageId === "math" ? "Precalculus" : course.languageId === "llm" ? "How AI Works" : course.languageId === "git" ? "Git CLI" : course.id === "react-lite" ? "React Lite 2026" : course.id === "react-enterprise" ? "React 2026" : course.languageId === "web" ? "Web Development Basics" : course.languageId === "sqlite" ? "SQLite" : course.languageId === "linux" ? "Linux CLI / Bash / Vim" : course.languageId === "kubernetes" ? "Kubernetes" : `Learn ${course.languageId === "python" ? "Python" : course.languageId === "rust" ? "Rust" : "C#"}`}`;
+  }, [course, view]);
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2600);
@@ -308,7 +327,15 @@ function App() {
     setCourseId(id);
     setRouteVersion((current) => current + 1);
     setWorkspace("learn");
+    setView("course");
+    setNavOpen(false);
     window.history[historyMode === "push" ? "pushState" : "replaceState"]({}, "", coursePath(id));
+  };
+  const goHome = () => {
+    setNavOpen(false);
+    setWorkspace("learn");
+    setView("home");
+    if (window.location.pathname !== "/") window.history.pushState({}, "", "/");
   };
   const loadLesson = async (slug: string, historyMode: "push" | "replace" | "none" = "push") => {
     setLoading(true);
@@ -346,7 +373,9 @@ function App() {
         if (!ordered.length) throw Error();
         const progress = await fetch(`${api}/api/progress`, { headers: apiHeaders(account) })
           .then((r) => (r.ok ? r.json() : null));
-        const stored = progress?.completedLessonSlugs ?? readProgress(progressOwner);
+        const stored = nextCourse.languageId === "math"
+          ? (progress?.completedLessonSlugs ?? [])
+          : (progress?.completedLessonSlugs ?? readProgress(progressOwner));
         const requestedLessonSlug = requestedLessonRef.current;
         const requested = requestedLessonSlug && ordered.some((item) => item.slug === requestedLessonSlug)
           ? requestedLessonSlug
@@ -373,10 +402,15 @@ function App() {
         setBlackProbe("");
         setDiagnosis("");
         setCompleted(stored);
-        localStorage.setItem("pathway-course-id", nextCourse.id);
+        if (view === "course") localStorage.setItem("pathway-course-id", nextCourse.id);
         localStorage.setItem(progressStorageKey(progressOwner), JSON.stringify(stored));
+        // Only canonicalize a course URL. On the base URL the catalogue stays put.
         const canonical = lessonPath(nextCourse.id, nextLesson.slug);
-        if (window.location.pathname !== canonical) window.history.replaceState({}, "", canonical);
+        if (
+          parseLearningLocation(window.location.pathname).courseId !== null &&
+          window.location.pathname !== canonical
+        )
+          window.history.replaceState({}, "", canonical);
       })
       .catch(() => notify("Start the API to load the curriculum."))
       .finally(() => setLoading(false));
@@ -385,7 +419,13 @@ function App() {
   useEffect(() => {
     const onPopState = () => {
       const location = parseLearningLocation(window.location.pathname);
-      if (!location.courseId) return;
+      setNavOpen(false);
+      if (!location.courseId) {
+        setWorkspace("learn");
+        setView("home");
+        return;
+      }
+      setView("course");
       localStorage.setItem("pathway-course-id", location.courseId);
       requestedLessonRef.current = location.lessonSlug;
       setCourseId(location.courseId);
@@ -427,7 +467,7 @@ function App() {
         detail: next.passed ? "passed" : "failed",
       });
       if (next.passed) {
-        setCompleted((current) => {
+        if (course?.languageId !== "math") setCompleted((current) => {
           const updated = [...new Set([...current, lesson.slug])];
           localStorage.setItem(
             progressStorageKey(progressOwner),
@@ -451,6 +491,23 @@ function App() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   });
+  const logout = () => {
+    setCompleted(readProgress(`guest:${learnerId}`));
+    setAccount(null);
+    void signOut();
+  };
+  // The catalogue needs only the course list, so it renders even while a course is loading
+  // or if the remembered course fails to load.
+  if (view === "home" && !onboarding)
+    return (
+      <CourseHome
+        activeCourseId={localStorage.getItem("pathway-course-id")}
+        account={account}
+        onOpenCourse={(id) => navigateToCourse(id)}
+        onSignIn={() => void login(false)}
+        onLogout={logout}
+      />
+    );
   if (loading && !lesson)
     return (
       <div className="app-dark grid min-h-screen place-items-center bg-canvas font-display text-2xl text-forest">
@@ -475,6 +532,7 @@ function App() {
           if (nextAccount) setAccount(nextAccount);
           localStorage.setItem("pathway-onboarding-complete", "true");
           setOnboarding(false);
+          navigateToCourse(courseId, "replace");
         }}
       />
     );
@@ -497,11 +555,6 @@ function App() {
   );
   const previousLessonSlug =
     currentLessonIndex > 0 ? orderedLessons[currentLessonIndex - 1].slug : null;
-  const logout = () => {
-    setCompleted(readProgress(`guest:${learnerId}`));
-    setAccount(null);
-    void signOut();
-  };
   if (
     workspace === "dashboard" ||
     workspace === "projects" ||
@@ -524,22 +577,30 @@ function App() {
           onLocked={() =>
             notify("Complete the previous lesson to unlock this one.")
           }
+          onHome={goHome}
+          drawerOpen={navOpen}
+          onDrawerClose={() => setNavOpen(false)}
+          onSignIn={account ? undefined : () => void login(false)}
+          onSignOut={account ? logout : undefined}
         />
         <main className="min-w-0 flex-1">
-          <header className="top-shell flex h-[70px] items-center justify-between border-b border-[#3b3052] bg-[#0f0d17] px-6 sm:px-10">
-            <p className="text-sm text-[#bdb2cf]">
-              ‹{" "}
-              <span>
-                {
+          <header className="top-shell flex h-[70px] items-center justify-between border-b border-[#3b3052] bg-[#0f0d17] px-4 sm:px-10">
+            <div className="flex min-w-0 items-center gap-2">
+              <MobileMenuButton onOpen={() => setNavOpen(true)} />
+              <p className="truncate text-sm text-[#bdb2cf]">
+                ‹{" "}
+                <span>
                   {
-                    dashboard: "Progress dashboard",
-                    projects: "Project studio",
-                    community: "Community",
-                    coach: "Guided coach",
-                  }[workspace]
-                }
-              </span>
-            </p>
+                    {
+                      dashboard: "Progress dashboard",
+                      projects: "Project studio",
+                      community: "Community",
+                      coach: "Guided coach",
+                    }[workspace]
+                  }
+                </span>
+              </p>
+            </div>
             <div className="flex items-center gap-3">
               {donationUrl && (
                 <a
@@ -589,8 +650,24 @@ function App() {
         </div>
       </div>
     );
+  const calculatorProfile = calculatorProfileFor(course?.languageId);
   return (
     <div className="app-dark min-h-screen bg-canvas lg:flex">
+      {calculatorProfile && (
+        <CalculatorPanel
+          open={calculatorOpen}
+          onClose={() => setCalculatorOpen(false)}
+          siPrefixes={calculatorProfile.siPrefixes}
+          onUseValue={
+            workspace === "learn" && lesson.exercise.kind === "Numeric"
+              ? (value) => {
+                  setAnswer(value);
+                  notify("Answer filled in. Check the unit, then press Check answer.");
+                }
+              : undefined
+          }
+        />
+      )}
       <Sidebar
         course={course}
         current={lesson.slug}
@@ -606,20 +683,31 @@ function App() {
         onLocked={() =>
           notify("Complete the previous lesson to unlock this one.")
         }
+        onHome={goHome}
+        drawerOpen={navOpen}
+        onDrawerClose={() => setNavOpen(false)}
+        onSignIn={account ? undefined : () => void login(false)}
+        onSignOut={account ? logout : undefined}
       />
       <main className="min-w-0 flex-1">
-        <header className="top-shell flex h-[70px] items-center justify-between border-b border-[#e4e1d8] bg-[#faf8f2] px-6 sm:px-10">
-          <p className="text-sm text-[#70766f]">
-            ‹{" "}
-            <span>
-              {workspace === "learn"
-                ? lesson.module
-                : workspace === "practice"
-                  ? "Practice"
-                  : "Projects"}
-            </span>
-          </p>
+        <header className="top-shell flex h-[70px] items-center justify-between border-b border-[#e4e1d8] bg-[#faf8f2] px-4 sm:px-10">
+          <div className="flex min-w-0 items-center gap-2">
+            <MobileMenuButton onOpen={() => setNavOpen(true)} />
+            <p className="truncate text-sm text-[#70766f]">
+              ‹{" "}
+              <span>
+                {workspace === "learn"
+                  ? lesson.module
+                  : workspace === "practice"
+                    ? "Practice"
+                    : "Projects"}
+              </span>
+            </p>
+          </div>
           <div className="flex items-center gap-3">
+            {calculatorProfile && (
+              <CalculatorButton open={calculatorOpen} onToggle={() => setCalculatorOpen((open) => !open)} />
+            )}
             <a
               href={lesson.version.sourceUrl}
               target="_blank"
@@ -669,6 +757,7 @@ function App() {
                 onNext={() => lesson.nextSlug && loadLesson(lesson.nextSlug)}
               />
             ) : (
+              <div className="min-w-0">
               <ExercisePanel
                 lesson={lesson}
                 answer={answer}
@@ -690,7 +779,17 @@ function App() {
                 submit={submit}
                 onReset={() => setCode(lesson.exercise.starterCode ?? "")}
                 onNext={() => lesson.nextSlug && loadLesson(lesson.nextSlug)}
+                allowNext={course.languageId !== "math"}
               />
+              {course.languageId === "math" && <MathMasteryPanel key={lesson.slug} slug={lesson.slug} api={api}
+                headers={() => apiHeaders(account)} guidedPassed={hasPassed} mastered={completed.includes(lesson.slug)}
+                onMastered={() => setCompleted(current => {
+                  const updated = [...new Set([...current, lesson.slug])];
+                  localStorage.setItem(progressStorageKey(progressOwner), JSON.stringify(updated));
+                  return updated;
+                })}
+                onNext={() => lesson.nextSlug && loadLesson(lesson.nextSlug)} />}
+              </div>
             )}
           </section>
         ) : (
@@ -753,6 +852,8 @@ function Onboarding({
   };
   const computingSelected = selectedCourseId === "computing-foundations";
   const electricalSelected = selectedCourseId === "electrical-engineering-foundations";
+  const prealgebraSelected = selectedCourseId === "prealgebra";
+  const algebraOneSelected = selectedCourseId === "algebra-1";
   const precalculusSelected = selectedCourseId === "precalculus";
   const llmSelected = selectedCourseId === "ai-llm-engineering";
   const gitSelected = selectedCourseId === "git-cli";
@@ -827,6 +928,30 @@ function Onboarding({
                   <small className="mt-1 block text-xs text-[#aaa3b6]">Circuits · measurement · components · signals</small>
                 </span>
                 {electricalSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
+              </button>
+              <button
+                aria-label="Select Pre-algebra course"
+                onClick={() => onSelectCourse("prealgebra")}
+                className={`track-option mt-3 flex w-full items-center gap-4 rounded-xl p-4 text-left ${prealgebraSelected ? "ring-1 ring-[#bd87ff]" : ""}`}
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#457a8b] font-mono text-xs font-bold text-white">a+b</span>
+                <span>
+                  <strong className="block text-sm text-white">Pre-algebra</strong>
+                  <small className="mt-1 block text-xs text-[#aaa3b6]">Fractions · rates · percentages · equations</small>
+                </span>
+                {prealgebraSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
+              </button>
+              <button
+                aria-label="Select Algebra I course"
+                onClick={() => onSelectCourse("algebra-1")}
+                className={`track-option mt-3 flex w-full items-center gap-4 rounded-xl p-4 text-left ${algebraOneSelected ? "ring-1 ring-[#bd87ff]" : ""}`}
+              >
+                <span className="grid h-11 w-11 place-items-center rounded-lg bg-[#5079a6] font-mono text-xs font-bold text-white">x²</span>
+                <span>
+                  <strong className="block text-sm text-white">Algebra I</strong>
+                  <small className="mt-1 block text-xs text-[#aaa3b6]">Equations · functions · systems · quadratics</small>
+                </span>
+                {algebraOneSelected && <Check className="ml-auto text-[#c198ff]" size={19} />}
               </button>
               <button
                 aria-label="Select Precalculus course"
@@ -1247,6 +1372,192 @@ function ThemePicker() {
   );
 }
 
+function MobileMenuButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Open navigation"
+      className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-[#bdb2cf] hover:bg-[#ffffff0b] hover:text-white lg:hidden"
+    >
+      <Menu size={22} />
+    </button>
+  );
+}
+
+// The base URL ("/"). It lists every course and never redirects into one; the last course
+// the learner opened is offered as a "Continue" shortcut instead.
+function CourseHome({
+  activeCourseId,
+  account,
+  onOpenCourse,
+  onSignIn,
+  onLogout,
+}: {
+  activeCourseId: string | null;
+  account: Account | null;
+  onOpenCourse: (courseId: string) => void;
+  onSignIn: () => void;
+  onLogout: () => void;
+}) {
+  const [catalog, setCatalog] = useState<CourseCatalogItem[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${api}/api/courses`)
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
+      .then((items: CourseCatalogItem[]) => {
+        if (!cancelled) setCatalog(items);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const availableCourses = (catalog ?? []).filter((item) => item.available);
+  const comingSoonCourses = (catalog ?? []).filter((item) => !item.available);
+  const resume = availableCourses.find((item) => item.id === activeCourseId);
+  return (
+    <div className="app-dark min-h-screen bg-canvas">
+      <header className="top-shell flex h-[70px] items-center justify-between border-b border-[#29243a] px-4 sm:px-10">
+        <div className="flex items-center gap-2 font-display text-[27px] font-semibold tracking-[-1.4px] text-white">
+          <span className="brand-orbit font-sans text-[33px] leading-5 text-[#b981ff]">
+            ⌁
+          </span>
+          <span>pathway</span>
+        </div>
+        <div className="flex items-center gap-3">
+          {donationUrl && (
+            <a
+              href={donationUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="hidden rounded-md bg-pine px-3 py-2 text-xs font-bold text-white sm:block"
+            >
+              Support Pathway
+            </a>
+          )}
+          {account ? (
+            <>
+              <ProfileMenu account={account} onLogout={onLogout} />
+              <button
+                type="button"
+                onClick={onLogout}
+                className="rounded-md border border-[#332846] px-3 py-1.5 text-xs font-semibold text-[#bdb2cf] hover:text-white sm:hidden"
+              >
+                Sign out
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={onSignIn}
+              className="rounded-md border border-[#7652a6] px-3 py-1.5 text-xs font-semibold text-[#e2d3ff] hover:bg-[#7a43c52b]"
+            >
+              Sign in
+            </button>
+          )}
+        </div>
+      </header>
+      <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-10 sm:py-14">
+        <h1 className="font-display text-4xl font-semibold tracking-[-1.5px] text-forest sm:text-5xl">
+          Choose a course
+        </h1>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-[#b9b3c8]">
+          Pick up where you left off, or start a new track. You can come back
+          here from any course with “All courses”.
+        </p>
+        {resume && (
+          <button
+            type="button"
+            onClick={() => onOpenCourse(resume.id)}
+            className="mt-8 flex w-full items-center gap-4 rounded-xl border border-[#7652a6] bg-[#8d4be21c] p-4 text-left hover:bg-[#8d4be238] sm:p-5"
+          >
+            <span className="language-badge min-w-9 shrink-0 rounded bg-[#785aa8] px-1.5 py-1 text-center text-[10px] text-white">
+              {courseBadgeText(resume)}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10px] font-bold tracking-[1.3px] text-[#9688ae]">
+                CONTINUE WHERE YOU LEFT OFF
+              </span>
+              <strong className="mt-1 block truncate text-base text-white">
+                {resume.title}
+              </strong>
+            </span>
+            <ArrowRight className="shrink-0 text-[#e2d3ff]" size={20} />
+          </button>
+        )}
+        {failed && (
+          <p className="mt-8 text-sm text-[#b9b3c8]">
+            Could not load the course list. Check the API connection and reload.
+          </p>
+        )}
+        {!failed && catalog === null && (
+          <p className="mt-8 text-sm text-[#9688ae]">Loading courses…</p>
+        )}
+        {availableCourses.length > 0 && (
+          <ul className="mt-8 grid gap-3 sm:grid-cols-2">
+            {availableCourses.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpenCourse(item.id)}
+                  className="flex h-full w-full items-start gap-3 rounded-xl border border-[#332846] bg-[#171321] p-4 text-left hover:border-[#7652a6] hover:bg-[#21182f]"
+                >
+                  <span className="language-badge min-w-9 shrink-0 rounded bg-[#785aa8] px-1.5 py-1 text-center text-[10px] text-white">
+                    {courseBadgeText(item)}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <strong className="block text-sm text-white">
+                      {item.title}
+                    </strong>
+                    <small className="mt-1 block text-[11px] text-[#9688ae]">
+                      {item.languageVersion} / {item.frameworkVersion}
+                    </small>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {comingSoonCourses.length > 0 && (
+          <>
+            <p className="mb-2 mt-10 text-[10px] font-bold tracking-[1.15px] text-[#9688ae]">
+              COMING SOON
+            </p>
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {comingSoonCourses.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-[#29243a] px-4 py-3 text-xs text-[#786f86]"
+                >
+                  <span className="min-w-0 truncate">{item.title}</span>
+                  <span className="shrink-0 text-[9px] font-bold uppercase tracking-[.8px]">
+                    Soon
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <div className="mt-12 flex gap-4 text-[11px] text-[#9589a6]">
+          <a href="/privacy.html" className="hover:text-white">
+            Privacy
+          </a>
+          <a href="/terms.html" className="hover:text-white">
+            Terms
+          </a>
+          <a href="/support.html" className="hover:text-white">
+            Support
+          </a>
+        </div>
+      </main>
+    </div>
+  );
+}
+
 function Sidebar({
   course,
   current,
@@ -1257,6 +1568,11 @@ function Sidebar({
   onChangeCourse,
   onSelect,
   onLocked,
+  onHome,
+  drawerOpen,
+  onDrawerClose,
+  onSignIn,
+  onSignOut,
 }: {
   course: Course;
   current: string;
@@ -1267,9 +1583,14 @@ function Sidebar({
   onChangeCourse: (courseId: string) => void;
   onSelect: (slug: string) => void;
   onLocked: () => void;
+  onHome: () => void;
+  drawerOpen: boolean;
+  onDrawerClose: () => void;
+  onSignIn?: () => void;
+  onSignOut?: () => void;
 }) {
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(
+  const [collapsedState, setCollapsed] = useState(
     () => localStorage.getItem("pathway-sidebar-collapsed") === "true",
   );
   const setSidebarCollapsed = (next: boolean) => {
@@ -1277,10 +1598,42 @@ function Sidebar({
     setTrackMenuOpen(false);
     localStorage.setItem("pathway-sidebar-collapsed", String(next));
   };
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onDrawerClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen, onDrawerClose]);
   const languageBadge = courseBadgeText(course);
+  // The same panel is the desktop column and the mobile drawer. The drawer is never collapsed
+  // and closes itself after any navigation.
+  const panel = (drawer: boolean) => {
+  const collapsed = drawer ? false : collapsedState;
+  const afterNavigate = () => {
+    if (drawer) onDrawerClose();
+  };
+  const navigate = (next: Workspace) => {
+    onNavigate(next);
+    afterNavigate();
+  };
+  const selectLesson = (slug: string) => {
+    onSelect(slug);
+    afterNavigate();
+  };
+  const changeCourse = (id: string) => {
+    onChangeCourse(id);
+    afterNavigate();
+  };
+  const goHome = () => {
+    onHome();
+    afterNavigate();
+  };
+  const Shell = drawer ? "div" : "aside";
   const nav = (id: Workspace, label: string, icon: ReactNode) => (
     <button
-      onClick={() => onNavigate(id)}
+      onClick={() => navigate(id)}
       aria-current={workspace === id ? "page" : undefined}
       aria-label={collapsed ? label : undefined}
       title={collapsed ? label : undefined}
@@ -1291,7 +1644,7 @@ function Sidebar({
     </button>
   );
   return (
-    <aside className={`sidebar-shell relative hidden min-h-screen shrink-0 flex-col border-r border-[#332846] bg-[#0f0d17] py-7 text-[#eee6fa] transition-[width,padding] duration-200 lg:flex ${collapsed ? "w-[76px] px-3" : "w-[264px] px-4"}`}>
+    <Shell className={drawer ? "sidebar-shell relative flex min-h-full w-full flex-col border-r border-[#332846] bg-[#0f0d17] px-4 py-7 text-[#eee6fa]" : `sidebar-shell relative z-10 hidden min-h-screen shrink-0 flex-col border-r border-[#332846] bg-[#0f0d17] py-7 text-[#eee6fa] transition-[width,padding] duration-200 lg:flex ${collapsed ? "w-[76px] px-3" : "w-[264px] px-4"}`}>
       <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between px-3"}`}>
         <div className={`flex items-center font-display font-semibold text-white ${collapsed ? "" : "gap-2 text-[27px] tracking-[-1.4px]"}`}>
           <span className="brand-orbit font-sans text-[33px] leading-5 text-[#b981ff]">
@@ -1299,6 +1652,16 @@ function Sidebar({
           </span>
           {!collapsed && <span>pathway</span>}
         </div>
+        {drawer ? (
+          <button
+            type="button"
+            onClick={onDrawerClose}
+            aria-label="Close navigation"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-[#bdb2cf] hover:bg-[#ffffff0b] hover:text-white"
+          >
+            <X size={20} />
+          </button>
+        ) : (
         <button
           onClick={() => setSidebarCollapsed(!collapsed)}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -1307,6 +1670,7 @@ function Sidebar({
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
+        )}
       </div>
       <nav className={`grid gap-1 text-sm font-medium ${collapsed ? "mt-10" : "mt-11"}`}>
         {nav("learn", "Learn", <Code2 size={17} />)}
@@ -1323,6 +1687,16 @@ function Sidebar({
         {nav("projects", "Projects", <FolderKanban size={17} />)}
         {nav("coach", "Coach", <Sparkles size={17} />)}
         {nav("community", "Community", <UserRound size={17} />)}
+        <button
+          type="button"
+          onClick={goHome}
+          aria-label={collapsed ? "All courses" : undefined}
+          title={collapsed ? "All courses" : undefined}
+          className={`mt-2 flex items-center rounded-lg border border-[#332846] py-2.5 text-left text-[#bdb2cf] transition hover:bg-[#ffffff0b] hover:text-white ${collapsed ? "justify-center px-2" : "gap-3 px-3"}`}
+        >
+          <LayoutGrid size={17} />
+          {!collapsed && "All courses"}
+        </button>
       </nav>
       {!collapsed && (
         <>
@@ -1355,7 +1729,7 @@ function Sidebar({
           <TrackMenu
             courseId={course.id}
             close={() => setTrackMenuOpen(false)}
-            onChangeCourse={onChangeCourse}
+            onChangeCourse={changeCourse}
           />
         ) : null}
       </div>
@@ -1373,7 +1747,7 @@ function Sidebar({
                 return (
                   <button
                     onClick={() =>
-                      unlocked ? onSelect(item.slug) : onLocked()
+                      unlocked ? selectLesson(item.slug) : onLocked()
                     }
                     key={item.slug}
                     aria-label={unlocked ? item.title : `${item.title} locked`}
@@ -1413,6 +1787,30 @@ function Sidebar({
           </div>
         </div>
         <ThemePicker />
+        {drawer && onSignIn && (
+          <button
+            type="button"
+            onClick={() => {
+              afterNavigate();
+              onSignIn();
+            }}
+            className="mt-4 w-full rounded-lg border border-[#7652a6] px-3 py-2.5 text-center text-xs font-bold text-[#e2d3ff] hover:bg-[#7a43c52b]"
+          >
+            Sign in
+          </button>
+        )}
+        {drawer && onSignOut && (
+          <button
+            type="button"
+            onClick={() => {
+              afterNavigate();
+              onSignOut();
+            }}
+            className="mt-4 w-full rounded-lg border border-[#332846] px-3 py-2.5 text-center text-xs font-bold text-[#bdb2cf] hover:bg-[#ffffff0b] hover:text-white"
+          >
+            Sign out
+          </button>
+        )}
         {donationUrl && (
           <a
             href={donationUrl}
@@ -1437,7 +1835,31 @@ function Sidebar({
       </div>
         </>
       )}
-    </aside>
+    </Shell>
+  );
+  };
+  return (
+    <>
+      {panel(false)}
+      {drawerOpen && (
+        <div
+          className="fixed inset-0 z-40 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Course navigation"
+        >
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={onDrawerClose}
+            className="absolute inset-0 bg-black/65"
+          />
+          <div className="relative h-full w-[88vw] max-w-[340px] overflow-y-auto overscroll-contain shadow-2xl">
+            {panel(true)}
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1611,7 +2033,19 @@ function WorkspacePanel({
     );
   }
   const stages =
-    course.id === "ai-llm-engineering"
+    course.id === "algebra-1"
+      ? [
+          ["Expression and equation fluency", "Solve real equations and inequalities with meaningful signs, inverse operations, and checks."],
+          ["Models and functions", "Graph lines, solve simultaneous constraints, and connect exponents, factoring, and quadratics to practical models."],
+          ["Algebra I capstone", "Compare competing pricing plans using equations, break-even analysis, and inequalities."],
+        ]
+      : course.id === "prealgebra"
+      ? [
+          ["Number fluency", "Build place value, calculation sense, fractions, decimals, ratios, and percentages through worked everyday examples."],
+          ["Algebra foundations", "Use negative numbers, powers, expressions, equations, and inequalities to describe and solve practical situations."],
+          ["Apply and verify", "Graph patterns, measure shapes, interpret data, and complete a real-world budget capstone before continuing to precalculus."],
+        ]
+      : course.id === "ai-llm-engineering"
       ? [
           [
             "Build the pieces by hand",
@@ -2074,6 +2508,7 @@ function LessonContent({ lesson }: { lesson: Lesson }) {
         </p>
       </div>
       <LessonBody lesson={lesson} />
+      {["ee-ac-fundamentals", "ee-wave-properties", "ee-wave-phase", "ee-phasors", "math-unit-circle"].includes(lesson.slug) && <WavePlayground phasors={lesson.slug === "ee-phasors"} />}
       <div className="overflow-hidden rounded-md bg-[#252b28] shadow-sm">
         <div className="bg-[#303735] px-4 py-2 font-mono text-[10px] text-[#bbc4bb]">
           {snippetLanguageLabel[language]}
@@ -2467,6 +2902,7 @@ function ExercisePanel({
   submit,
   onReset,
   onNext,
+  allowNext = true,
 }: {
   lesson: Lesson;
   answer: string;
@@ -2488,6 +2924,7 @@ function ExercisePanel({
   submit: () => void;
   onReset: () => void;
   onNext: () => void;
+  allowNext?: boolean;
 }) {
   const e = lesson.exercise;
   const language = lesson.slug.startsWith("react-")
@@ -2548,6 +2985,7 @@ function ExercisePanel({
             placeholder="0"
             className="min-w-0 flex-1 rounded-md border border-[#d5d2c9] bg-white px-3 py-3 font-mono text-sm text-[#26342d] outline-none focus:border-[#258160]"
           />
+          <button type="button" aria-label="Toggle positive or negative" title="Change the sign of your answer" aria-pressed={answer.trim().startsWith("-") || answer.trim().startsWith("−")} onClick={() => setAnswer(toggleNumericSign(answer))} className="rounded-md border border-[#d5d2c9] bg-white px-3 py-3 font-mono text-sm font-semibold text-[#26342d] hover:border-[#258160] focus-visible:outline-2 focus-visible:outline-[#258160]">±</button>
           <label className="sr-only" htmlFor={`numeric-unit-${lesson.slug}`}>Unit</label>
           <select
             id={`numeric-unit-${lesson.slug}`}
@@ -2654,7 +3092,7 @@ function ExercisePanel({
           />
         </details>
       )}
-      {passed && lesson.nextSlug && (
+      {passed && allowNext && lesson.nextSlug && (
         <button
           onClick={onNext}
           className="mt-5 rounded-md bg-pine px-4 py-3 text-[13px] font-bold text-white"

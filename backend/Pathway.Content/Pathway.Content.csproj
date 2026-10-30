@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Course material and catalogs. Depends only on Pathway.Domain. -->
+  <ItemGroup>
+    <ProjectReference Include="../Pathway.Domain/Pathway.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Pathway.Api.Tests" />
+  </ItemGroup>
+</Project>

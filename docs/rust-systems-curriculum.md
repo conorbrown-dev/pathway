@@ -55,16 +55,15 @@ The systems path runs from installation to a capstone with a graded exercise in 
 6. **Networking from sockets up:** TCP with `std::net`; framing; concurrent servers with timeouts; project: Tokio key-value server.
 7. **Systems practice:** property testing and fuzzing; targets, `no_std`, embedded and WebAssembly; **capstone: a crash-safe log-structured store.**
 
-The service-delivery, quality/operations and staff modules that follow form the backend track and are still templated.
+The backend track follows: **Service delivery** (Axum, API contracts, error mapping, SQLite transactions, authorization), **Quality and operations** (testing boundaries, metrics, capacity, resilience, delivery) and **Staff practice** (design, ADRs, incidents, leverage, capstone). Every lesson in the course is authored; the staff lessons use graded numeric estimates and written deliverables, and `Every_Rust_lesson_is_authored` keeps it that way.
 
 Grading conventions worth keeping:
 - Network fixtures bind to 127.0.0.1 and start a watchdog thread so a hanging submission fails fast.
-- Fixtures that need crates (Tokio, serde) compile with `pathway-rustc`; the image smoke test proves loopback networking works with no network.
+- Fixtures that need crates (Tokio, Axum, serde, rusqlite) compile with `pathway-rustc`; the image smoke test proves loopback networking works with no network.
 - The raw-pointer and FFI graders require a `// SAFETY:` comment per `unsafe` block; the `no_std` grader compiles the submission as a `#![no_std]` library first.
 
 ### Known follow-up items
 
-1. Service delivery, quality/operations and staff lessons are still templated one-liners with multiple-choice checks.
-2. The frontend shows one checkpoint per course; module-end checkpoints for memory safety, OS, low-level and networking need the assessment UI (audit H1).
-3. Production sandboxes use Vercel's `deny-all` policy; confirm loopback works there with one real submission to a networking lesson after deploy.
-4. Optional deeper tracks: Linux interfaces (epoll, mmap), compiler/toolchain fundamentals, embedded hardware labs.
+1. The frontend shows one checkpoint per course; module-end checkpoints for memory safety, OS, low-level and networking need the assessment UI (audit H1).
+2. Production sandboxes use Vercel's `deny-all` policy; confirm loopback works there with one real submission to a networking lesson after deploy.
+3. Optional deeper tracks: Linux interfaces (epoll, mmap), compiler/toolchain fundamentals, embedded hardware labs.
