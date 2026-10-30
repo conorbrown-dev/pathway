@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Pathway.Domain/Pathway.Domain.csproj" />
+  <Project Path="Pathway.Content/Pathway.Content.csproj" />
+  <Project Path="Pathway.Infrastructure/Pathway.Infrastructure.csproj" />
+  <Project Path="Pathway.Api/Pathway.Api.csproj" />
+  <Project Path="Pathway.Api.Tests/Pathway.Api.Tests.csproj" />
+</Solution>

@@ -6,7 +6,7 @@ test.describe('authenticated production smoke', () => {
   test.skip(!hasAuthenticatedProductionConfig, 'Requires PLAYWRIGHT_BASE_URL and a short-lived PLAYWRIGHT_AUTH_STORAGE_STATE created for a dedicated Auth0 test learner.')
 
   test('loads the signed-in learner identity and protected progress experience', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/courses/csharp-dotnet')
     await expect(page.getByRole('button', { name: /Sign in/i })).toHaveCount(0)
     await page.getByRole('button', { name: 'Progress' }).click()
     await expect(page.getByRole('heading', { name: 'Make progress visible.' })).toBeVisible()
@@ -14,7 +14,7 @@ test.describe('authenticated production smoke', () => {
   })
 
   test('opens the signed-in profile menu without exposing secrets', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/courses/csharp-dotnet')
     const profile = page.locator('button[aria-haspopup="menu"]').last()
     await expect(profile).toBeVisible()
     await profile.click()

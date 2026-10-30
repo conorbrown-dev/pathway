@@ -12,31 +12,31 @@ public class CurriculumInvariantTests
     public static TheoryData<string> PublishedCourseIds()
     {
         var data = new TheoryData<string>();
-        foreach (var item in Curriculum.Catalog.Where(item => item.Available)) data.Add(item.Id);
+        foreach (var item in CourseCatalog.Catalog.Where(item => item.Available)) data.Add(item.Id);
         return data;
     }
 
     private static Lesson[] LessonsOf(string courseId) =>
-        Curriculum.Courses[courseId].Modules
+        CourseCatalog.Courses[courseId].Modules
             .SelectMany(module => module.Lessons)
             .OrderBy(summary => summary.Order)
-            .Select(summary => Curriculum.BySlug[summary.Slug])
+            .Select(summary => CourseCatalog.BySlug[summary.Slug])
             .ToArray();
 
     [Fact]
     public void Every_available_catalog_entry_resolves_to_a_course()
     {
-        foreach (var item in Curriculum.Catalog.Where(item => item.Available))
-            Assert.True(Curriculum.Courses.ContainsKey(item.Id), $"Catalog course '{item.Id}' has no course definition.");
+        foreach (var item in CourseCatalog.Catalog.Where(item => item.Available))
+            Assert.True(CourseCatalog.Courses.ContainsKey(item.Id), $"Catalog course '{item.Id}' has no course definition.");
     }
 
     [Theory]
     [MemberData(nameof(PublishedCourseIds))]
     public void Every_lesson_summary_resolves_to_a_lesson(string courseId)
     {
-        var missing = Curriculum.Courses[courseId].Modules
+        var missing = CourseCatalog.Courses[courseId].Modules
             .SelectMany(module => module.Lessons)
-            .Where(summary => !Curriculum.BySlug.ContainsKey(summary.Slug))
+            .Where(summary => !CourseCatalog.BySlug.ContainsKey(summary.Slug))
             .Select(summary => summary.Slug)
             .ToArray();
         Assert.True(missing.Length == 0, $"{courseId}: unresolvable lessons {string.Join(", ", missing)}");
@@ -90,7 +90,7 @@ public class CurriculumInvariantTests
     public void Public_lesson_json_never_contains_answer_data()
     {
         var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
-        foreach (var lesson in Curriculum.BySlug.Values)
+        foreach (var lesson in CourseCatalog.BySlug.Values)
         {
             var json = System.Text.Json.JsonSerializer.SerializeToNode(lesson, options)!["exercise"]!.AsObject();
             foreach (var field in new[] { "correctAnswer", "expectedNumeric", "tolerance", "workedSolution" })
@@ -110,6 +110,81 @@ public class CurriculumInvariantTests
             Assert.Equal("Tailwind CSS", lesson.Version.Language);
             Assert.NotEqual(lesson.Subtitle, lesson.Concept);
         });
+    }
+
+
+    [Fact]
+    public void Prealgebra_teaches_concepts_before_module_end_assessments()
+    {
+        var course = CourseCatalog.Courses["prealgebra"];
+        var lessons = LessonsOf("prealgebra");
+        Assert.True(lessons.Length >= 30, "Pre-algebra must be a full bridge course, not a small sample.");
+
+        Assert.All(lessons, lesson =>
+        {
+            Assert.Equal("Pre-algebra", lesson.Version.Language);
+            Assert.NotEqual(lesson.Subtitle, lesson.Concept);
+            Assert.Contains("## Learn the idea", lesson.Body);
+            Assert.Contains("## Worked example", lesson.Body);
+            Assert.Contains("## Check the reasoning", lesson.Body);
+            Assert.True(lesson.Exercise.Kind is ExerciseKind.Numeric or ExerciseKind.MultipleChoice);
+            if (lesson.Exercise.Kind == ExerciseKind.Numeric)
+            {
+                Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.Unit));
+                Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.WorkedSolution));
+                Assert.NotNull(lesson.Exercise.ExpectedNumeric);
+                Assert.True(lesson.Exercise.Tolerance > 0);
+            }
+        });
+
+        Assert.Equal(9, course.Modules.Count);
+        foreach (var module in course.Modules)
+        {
+            var checkpoint = AssessmentCatalog.Get(course.Id, module.Id);
+            Assert.NotNull(checkpoint);
+            Assert.True(checkpoint!.Questions.Length >= 3, $"{module.Id} needs a substantive checkpoint.");
+            var lessonSlugs = module.Lessons.Select(lesson => lesson.Slug).ToHashSet(StringComparer.Ordinal);
+            Assert.All(checkpoint.Questions, question =>
+            {
+                Assert.Contains(question.CorrectAnswer, question.Choices);
+                Assert.Contains(question.ReviewLessonSlug, lessonSlugs);
+            });
+        }
+    }
+
+    [Fact]
+    public void Algebra_one_has_instruction_first_modules_signed_answers_and_checkpoints()
+    {
+        var course = CourseCatalog.Courses["algebra-1"];
+        var lessons = LessonsOf("algebra-1");
+        Assert.Equal(33, lessons.Length);
+        Assert.Equal(11, course.Modules.Count);
+        Assert.All(lessons, lesson =>
+        {
+            Assert.Equal("Algebra I", lesson.Version.Language);
+            Assert.NotEqual(lesson.Subtitle, lesson.Concept);
+            Assert.DoesNotContain("A foundational rule for", lesson.Concept);
+            Assert.Contains("## What it means", lesson.Body);
+            Assert.Contains("## Work through an example", lesson.Body);
+            Assert.Contains("## Check the reasoning", lesson.Body);
+            Assert.Equal(ExerciseKind.Numeric, lesson.Exercise.Kind);
+            Assert.NotNull(lesson.Exercise.ExpectedNumeric);
+            Assert.True(lesson.Exercise.Tolerance > 0);
+            Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.WorkedSolution));
+        });
+        Assert.Contains(lessons, lesson => lesson.Exercise.ExpectedNumeric < 0);
+        foreach (var module in course.Modules)
+        {
+            var checkpoint = AssessmentCatalog.Get(course.Id, module.Id);
+            Assert.NotNull(checkpoint);
+            Assert.True(checkpoint!.Questions.Length >= 3);
+            var moduleSlugs = module.Lessons.Select(lesson => lesson.Slug).ToHashSet();
+            Assert.All(checkpoint.Questions, question =>
+            {
+                Assert.Contains(question.CorrectAnswer, question.Choices);
+                Assert.Contains(question.ReviewLessonSlug, moduleSlugs);
+            });
+        }
     }
 
     [Fact]
@@ -225,6 +300,16 @@ public class CurriculumInvariantTests
     [InlineData("rust-testing-properties")]
     [InlineData("rust-systems-wasm-embedded")]
     [InlineData("rust-systems-capstone")]
+    [InlineData("rust-web-axum")]
+    [InlineData("rust-api-contracts")]
+    [InlineData("rust-extractors-errors")]
+    [InlineData("rust-database-transactions")]
+    [InlineData("rust-auth-security")]
+    [InlineData("rust-testing-integration")]
+    [InlineData("rust-observability")]
+    [InlineData("rust-performance-profiling")]
+    [InlineData("rust-resilience-queues")]
+    [InlineData("rust-containers-delivery")]
     [InlineData("rust-structs-enums")]
     [InlineData("rust-traits-generics")]
     [InlineData("rust-errors-panics")]
@@ -234,13 +319,29 @@ public class CurriculumInvariantTests
     [InlineData("rust-async-tokio")]
     public void Authored_Rust_lessons_replace_their_templates(string slug)
     {
-        var lesson = Curriculum.BySlug[slug];
+        var lesson = CourseCatalog.BySlug[slug];
         Assert.DoesNotContain("Apply it in a small project, explain the tradeoff", lesson.Body);
         Assert.NotEqual(lesson.Subtitle, lesson.Concept);
         Assert.Contains("```rust", lesson.Body);
         Assert.Equal(ExerciseKind.Code, lesson.Exercise.Kind);
         Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.StarterCode), $"{slug}: code exercise has no starter code.");
         Assert.NotEmpty(lesson.Exercise.Requirements);
+    }
+
+    [Fact]
+    public void Every_Rust_lesson_is_authored()
+    {
+        // No Rust lesson may fall back to the one-line template any more.
+        var templated = LessonsOf("rust-systems")
+            .Where(lesson => lesson.Body.Contains("Apply it in a small project, explain the tradeoff", StringComparison.Ordinal) || lesson.Subtitle == lesson.Concept)
+            .Select(lesson => lesson.Slug)
+            .ToArray();
+        Assert.True(templated.Length == 0, $"Rust lessons still templated: {string.Join(", ", templated)}");
+        Assert.All(LessonsOf("rust-systems").Where(lesson => lesson.Exercise.Kind == ExerciseKind.Numeric), lesson =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.Unit), $"{lesson.Slug}: numeric answer has no unit.");
+            Assert.False(string.IsNullOrWhiteSpace(lesson.Exercise.WorkedSolution), $"{lesson.Slug}: numeric answer has no worked solution.");
+        });
     }
 
     [Fact]
