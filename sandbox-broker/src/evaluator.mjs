@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 
 const MAX_CODE_BYTES = 50_000
 
@@ -21,6 +21,35 @@ function kubeFixture(lessonSlug, code) {
     command: ['python3', '-I', '/workspace/kube_check.py', lessonSlug, '/workspace/submission.txt'],
     tests: KUBE_TESTS[lessonSlug],
     runtime: 'kubernetes',
+  }
+}
+
+// AI & LLM course: each lesson's grader is a Python file in llm-graders/ named after the lesson
+// slug. The shared harness is prepended so the script runs standalone under `python3 -I`. Learner
+// code is standard-library Python 3.11 (the tools image). A grader declares its test count in a
+// `# tests: N` comment.
+const LLM_GRADER_DIR = new URL('./llm-graders/', import.meta.url)
+const LLM_HARNESS = readFileSync(new URL('_harness.py', LLM_GRADER_DIR), 'utf8')
+const LLM_GRADERS = Object.fromEntries(
+  readdirSync(LLM_GRADER_DIR)
+    .filter(name => name.endsWith('.py') && !name.startsWith('_'))
+    .map(name => {
+      const source = readFileSync(new URL(name, LLM_GRADER_DIR), 'utf8')
+      const tests = Number(/^# tests: (\d+)$/m.exec(source)?.[1] ?? 1)
+      return [name.slice(0, -3), { source, tests }]
+    }),
+)
+
+/** Lesson slugs graded by a Python grader in llm-graders/. */
+export const llmGradedSlugs = () => Object.keys(LLM_GRADERS).sort()
+
+function llmFixture(lessonSlug, code) {
+  const grader = LLM_GRADERS[lessonSlug]
+  return {
+    files: { 'grader.py': `${LLM_HARNESS}\n\n# ---- ${lessonSlug} ----\n${grader.source}`, 'submission.py': code },
+    command: ['python3', '-I', '-B', '/workspace/grader.py'],
+    tests: grader.tests,
+    runtime: 'python',
   }
 }
 
@@ -191,6 +220,7 @@ declare module 'vitest' {
 
 export function fixtureFor(lessonSlug, code) {
   if (Object.hasOwn(KUBE_TESTS, lessonSlug)) return kubeFixture(lessonSlug, code)
+  if (Object.hasOwn(LLM_GRADERS, lessonSlug)) return llmFixture(lessonSlug, code)
   switch (lessonSlug) {
     case 'python-functions':
       return {
@@ -2597,6 +2627,7 @@ const SANDBOX_IMAGES = {
   linux: 'tools',
   kubernetes: 'tools',
   hook: 'tools',
+  python: 'tools',
 }
 
 /** Wrapper baked into every sandbox image (images/as-learner) that drops root to uid 10001. */

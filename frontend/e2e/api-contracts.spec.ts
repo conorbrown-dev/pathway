@@ -26,6 +26,7 @@ test.describe('public API contract', () => {
       expect.objectContaining({ id: 'computing-foundations', available: true }),
       expect.objectContaining({ id: 'electrical-engineering-foundations', available: true }),
       expect.objectContaining({ id: 'precalculus', available: true }),
+      expect.objectContaining({ id: 'ai-llm-engineering', available: true }),
       expect.objectContaining({ id: 'git-cli', available: true }),
       expect.objectContaining({ id: 'web-development-basics', available: true }),
       expect.objectContaining({ id: 'sqlite', available: true }),
@@ -60,7 +61,7 @@ test.describe('public API contract', () => {
     expect((await request.post(`${apiBaseUrl}/api/submissions/validate`, { data: { lessonSlug: 'not-a-lesson', answer: 'anything' } })).status()).toBe(404)
   })
 
-  for (const courseId of ['computing-foundations', 'electrical-engineering-foundations', 'precalculus', 'git-cli', 'web-development-basics', 'sqlite', 'linux-cli-bash-vim', 'react-lite', 'react-enterprise', 'csharp-dotnet', 'python-web', 'rust-systems']) {
+  for (const courseId of ['computing-foundations', 'electrical-engineering-foundations', 'precalculus', 'ai-llm-engineering', 'git-cli', 'web-development-basics', 'sqlite', 'linux-cli-bash-vim', 'react-lite', 'react-enterprise', 'csharp-dotnet', 'python-web', 'rust-systems']) {
     test(`${courseId} has contiguous lessons and representative next-lesson links`, async ({ request }) => {
       const courseResponse = await request.get(`${apiBaseUrl}/api/courses/${courseId}`)
       await expect(courseResponse).toBeOK()
@@ -358,6 +359,36 @@ test.describe('public API contract', () => {
     const outsideTolerance = await request.post(`${apiBaseUrl}/api/submissions/validate`, { headers, data: { lessonSlug: 'ee-ohms-law', answer: '40', unit: 'mA' } })
     await expect(outsideTolerance).toBeOK()
     await expect(outsideTolerance.json()).resolves.toMatchObject({ passed: false, nextLessonSlug: null })
+  })
+
+  test('serves the AI & LLM course with declared prerequisites and Python code exercises', async ({ request }) => {
+    const courseResponse = await request.get(`${apiBaseUrl}/api/courses/ai-llm-engineering`)
+    await expect(courseResponse).toBeOK()
+    const summaries = orderedLessons(await courseResponse.json() as Course)
+    expect(summaries[0]).toMatchObject({ slug: 'llm-what-ai-is', order: 1 })
+    expect(summaries.map(lesson => lesson.slug)).toEqual(expect.arrayContaining(['llm-python-toolkit', 'llm-exp-log-softmax']))
+
+    const lessonResponse = await request.get(`${apiBaseUrl}/api/lessons/llm-python-toolkit`)
+    await expect(lessonResponse).toBeOK()
+    const lesson = await lessonResponse.json() as { body: string; version: { language: string }; exercise: Record<string, unknown> }
+    expect(lesson.body.startsWith('## What you need first')).toBe(true)
+    expect(lesson.body).toContain('Lesson 1, What AI is')
+    expect(lesson.body).toContain('## Explain it to your team')
+    expect(lesson.version.language).toMatch(/^Python/)
+    expect(lesson.exercise).toMatchObject({ kind: 'Code' })
+
+    const headers = { 'X-Learner-Id': `llm-course-${crypto.randomUUID()}` }
+    const complete = 'def mean(values):\n    pass\n\ndef argmax(values):\n    pass\n\ndef word_counts(text):\n    pass\n\ndef shuffled(items, seed):\n    pass\n'
+    const passed = await request.post(`${apiBaseUrl}/api/submissions/validate`, { headers, data: { lessonSlug: 'llm-python-toolkit', code: complete } })
+    await expect(passed).toBeOK()
+    await expect(passed.json()).resolves.toMatchObject({ passed: true, nextLessonSlug: 'llm-data-as-numbers' })
+    const missing = await request.post(`${apiBaseUrl}/api/submissions/validate`, { headers, data: { lessonSlug: 'llm-python-toolkit', code: 'def mean(values):\n    pass\n' } })
+    await expect(missing.json()).resolves.toMatchObject({ passed: false })
+
+    const first = await request.get(`${apiBaseUrl}/api/lessons/llm-what-ai-is`)
+    const firstLesson = await first.json() as Lesson
+    expect(firstLesson.exercise.kind).toBe('MultipleChoice')
+    expect(firstLesson.exercise).not.toHaveProperty('correctAnswer')
   })
 
   test('serves Precalculus with real-world models and validates numeric answers with units', async ({ request }) => {

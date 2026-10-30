@@ -1,10 +1,12 @@
-// Runs every Rust reference solution through its real fixture inside a built sandbox image, the
-// way production grades it: as the learner user (via as-learner), with no network.
+// Runs every reference solution through its real fixture inside a built sandbox image, the way
+// production grades it: as the learner user (via as-learner), with no network.
 //
-//   node scripts/fixtures-in-image.mjs <docker-image>
+//   node scripts/fixtures-in-image.mjs <docker-image> [rust|python]
 //
-// `<slug>.pass.rs` / `<slug>.*.pass.rs` must pass and `<slug>.*.fail.rs` must fail. Exits non-zero
-// on any mismatch, and reports each run's duration against the sandbox's per-command limit.
+// rust (the default) uses test/rust-solutions in the rust image; python uses test/python-solutions
+// (the AI & LLM course graders) in the tools image. `<slug>.pass.*` / `<slug>.*.pass.*` must pass
+// and `<slug>.*.fail.*` must fail. Exits non-zero on any mismatch, and reports each run's duration
+// against the sandbox's per-command limit.
 import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -13,21 +15,24 @@ import { fileURLToPath } from 'node:url'
 import { evaluationResult, fixtureFor, LEARNER_WRAPPER } from '../src/evaluator.mjs'
 
 const image = process.argv[2]
-if (!image) {
-  console.error('usage: node scripts/fixtures-in-image.mjs <docker-image>')
+const kind = process.argv[3] ?? 'rust'
+const SUITES = { rust: { dir: 'rust-solutions', ext: '.rs' }, python: { dir: 'python-solutions', ext: '.py' } }
+if (!image || !SUITES[kind]) {
+  console.error('usage: node scripts/fixtures-in-image.mjs <docker-image> [rust|python]')
   process.exit(2)
 }
+const { dir, ext } = SUITES[kind]
 
 const LIMIT_MS = 12_000 // EXERCISE_TIMEOUT_MS in src/server.mjs
-const solutionsDir = fileURLToPath(new URL('../test/rust-solutions/', import.meta.url))
-const solutions = readdirSync(solutionsDir).filter(name => name.endsWith('.rs')).sort()
+const solutionsDir = fileURLToPath(new URL(`../test/${dir}/`, import.meta.url))
+const solutions = readdirSync(solutionsDir).filter(name => name.endsWith(ext)).sort()
 let failures = 0
 const timings = []
 const compileFailures = []
 
 for (const name of solutions) {
   const slug = name.split('.')[0]
-  const shouldPass = name.endsWith('.pass.rs')
+  const shouldPass = name.endsWith(`.pass${ext}`)
   const fixture = fixtureFor(slug, readFileSync(join(solutionsDir, name), 'utf8'))
   if (!fixture) {
     console.log(`FAIL ${name}: no fixture for ${slug}`)
@@ -58,7 +63,9 @@ for (const name of solutions) {
 }
 
 console.log(`${solutions.length - failures}/${solutions.length} fixture checks passed`)
-console.log(`fail.rs files that fail to compile: ${compileFailures.join(', ') || 'none'}`)
-if (process.env.GITHUB_ACTIONS) console.log(`::notice title=Expected failures that are compile errors::${compileFailures.join(', ') || 'none'}`)
-if (process.env.GITHUB_ACTIONS) console.log(`::notice title=Rust fixtures in image::${solutions.length - failures}/${solutions.length} passed. ${timings.join(', ')}`)
+if (kind === 'rust') {
+  console.log(`fail.rs files that fail to compile: ${compileFailures.join(', ') || 'none'}`)
+  if (process.env.GITHUB_ACTIONS) console.log(`::notice title=Expected failures that are compile errors::${compileFailures.join(', ') || 'none'}`)
+}
+if (process.env.GITHUB_ACTIONS) console.log(`::notice title=${kind} fixtures in image::${solutions.length - failures}/${solutions.length} passed. ${timings.join(', ')}`)
 process.exit(failures === 0 ? 0 : 1)

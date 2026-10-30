@@ -192,6 +192,17 @@ public static class LocalAuthoringChecker
             };
             return new ValidationResult(rustPassed, rustPassed ? 2 : 0, 2, rustPassed ? "All tests passed. Your Rust solution meets this lesson’s checks." : lesson.Exercise.Hint, rustPassed ? lesson.NextSlug : null, CodeReviewer.Review(lesson, code));
         }
+        if (lesson.Slug.StartsWith("llm-", StringComparison.Ordinal))
+        {
+            // Local authoring only: check that every function named in the requirements is defined.
+            // Deployed lessons run the real Python grader (sandbox-broker/src/llm-graders) in the sandbox.
+            var required = lesson.Exercise.Requirements
+                .SelectMany(requirement => System.Text.RegularExpressions.Regex.Matches(requirement, @"`(\w+)\(").Select(match => match.Groups[1].Value))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            var llmPassed = required.Length > 0 && required.All(name => code.Contains($"def {name}(", StringComparison.Ordinal));
+            return new ValidationResult(llmPassed, llmPassed ? 2 : 0, 2, llmPassed ? "Every required function is defined. Deployed lessons run the full grader in the sandbox." : lesson.Exercise.Hint, llmPassed ? lesson.NextSlug : null, CodeReviewer.Review(lesson, code));
+        }
         if (lesson.Slug.StartsWith("python-", StringComparison.Ordinal))
         {
             var pythonPassed = lesson.Slug switch

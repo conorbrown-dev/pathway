@@ -14,7 +14,9 @@ on:
     paths:
       - 'sandbox-broker/images/**'
       - 'sandbox-broker/src/evaluator.mjs'
+      - 'sandbox-broker/src/llm-graders/**'
       - 'sandbox-broker/test/rust-solutions/**'
+      - 'sandbox-broker/test/python-solutions/**'
       - 'sandbox-broker/scripts/**'
       - '.github/workflows/sandbox-images.yml'
   push:
@@ -89,6 +91,10 @@ jobs:
             docker run --rm --network none -v "$PWD/sandbox-broker/images/rust/smoke:/smoke:ro" sandbox-rust:ci as-learner /smoke/run.sh
             # Every Rust grader against its pass/fail reference solutions, inside this image.
             node sandbox-broker/scripts/fixtures-in-image.mjs sandbox-rust:ci
+          fi
+          if [ "${{ matrix.image }}" = tools ]; then
+            # Every AI & LLM course grader against its pass/fail reference solutions, on the image's Python.
+            node sandbox-broker/scripts/fixtures-in-image.mjs sandbox-tools:ci python
           fi
 
       - name: Mark the image published
