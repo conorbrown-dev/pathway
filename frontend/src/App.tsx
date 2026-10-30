@@ -139,6 +139,52 @@ const courseBadgeText = (course: { id: string; languageId: string }) =>
                             ? "C#"
                             : course.languageId.slice(0, 3).toUpperCase();
 
+// One colour per course so learners can tell tracks apart at a glance. Each pair is
+// [light end, dark end] of the badge gradient; white text stays readable on both.
+const courseBadgeColors: Record<string, [string, string]> = {
+  "computing-foundations": ["#6366f1", "#3730a3"],
+  "electrical-engineering-foundations": ["#ca8a04", "#854d0e"],
+  prealgebra: ["#0d9488", "#115e59"],
+  "algebra-1": ["#16a34a", "#166534"],
+  precalculus: ["#db2777", "#9d174d"],
+  "git-cli": ["#ea580c", "#9a3412"],
+  "web-development-basics": ["#ef4444", "#b91c1c"],
+  "tailwind-css": ["#0891b2", "#155e75"],
+  sqlite: ["#3b82f6", "#1d4ed8"],
+  "linux-cli-bash-vim": ["#64748b", "#334155"],
+  kubernetes: ["#8b5cf6", "#5b21b6"],
+  "react-enterprise": ["#0284c7", "#075985"],
+  "react-lite": ["#38bdf8", "#0369a1"],
+  "csharp-dotnet": ["#a855f7", "#6b21a8"],
+  "python-web": ["#65a30d", "#3f6212"],
+  "rust-systems": ["#b45309", "#78350f"],
+  "claude-engineering": ["#d97757", "#a64b2a"],
+  "ai-llm-engineering": ["#c026d3", "#86198f"],
+};
+const defaultBadgeColors: [string, string] = ["#8a63c9", "#5a3a96"];
+
+// Deliberately not the `language-badge` class: the dark theme repaints that one with the accent colour.
+function CourseBadge({
+  course,
+  className,
+}: {
+  course: { id: string; languageId: string };
+  className: string;
+}) {
+  const [from, to] = courseBadgeColors[course.id] ?? defaultBadgeColors;
+  return (
+    <span
+      className={`course-badge rounded text-white ${className}`}
+      style={{
+        background: `linear-gradient(135deg, ${from}, ${to})`,
+        boxShadow: `0 4px 14px ${to}66`,
+      }}
+    >
+      {courseBadgeText(course)}
+    </span>
+  );
+}
+
 type CodeReview = { summary: string; suggestions: string[] };
 type Result = {
   passed: boolean;
@@ -1475,9 +1521,7 @@ function CourseHome({
             onClick={() => onOpenCourse(resume.id)}
             className="mt-8 flex w-full items-center gap-4 rounded-xl border border-[#7652a6] bg-[#8d4be21c] p-4 text-left hover:bg-[#8d4be238] sm:p-5"
           >
-            <span className="language-badge min-w-9 shrink-0 rounded bg-[#785aa8] px-1.5 py-1 text-center text-[10px] text-white">
-              {courseBadgeText(resume)}
-            </span>
+            <CourseBadge course={resume} className="min-w-9 shrink-0 px-1.5 py-1 text-center text-[10px]" />
             <span className="min-w-0 flex-1">
               <span className="block text-[10px] font-bold tracking-[1.3px] text-[#9688ae]">
                 CONTINUE WHERE YOU LEFT OFF
@@ -1506,9 +1550,7 @@ function CourseHome({
                   onClick={() => onOpenCourse(item.id)}
                   className="flex h-full w-full items-start gap-3 rounded-xl border border-[#332846] bg-[#171321] p-4 text-left hover:border-[#7652a6] hover:bg-[#21182f]"
                 >
-                  <span className="language-badge min-w-9 shrink-0 rounded bg-[#785aa8] px-1.5 py-1 text-center text-[10px] text-white">
-                    {courseBadgeText(item)}
-                  </span>
+                  <CourseBadge course={item} className="min-w-9 shrink-0 px-1.5 py-1 text-center text-[10px]" />
                   <span className="min-w-0 flex-1">
                     <strong className="block text-sm text-white">
                       {item.title}
@@ -1606,7 +1648,6 @@ function Sidebar({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [drawerOpen, onDrawerClose]);
-  const languageBadge = courseBadgeText(course);
   // The same panel is the desktop column and the mobile drawer. The drawer is never collapsed
   // and closes itself after any navigation.
   const panel = (drawer: boolean) => {
@@ -1710,9 +1751,7 @@ function Sidebar({
           aria-haspopup="menu"
           className="flex w-full items-center gap-2 rounded-md px-3 pb-4 text-left text-sm font-semibold hover:bg-[#ffffff0b]"
         >
-          <span className="language-badge rounded bg-[#785aa8] px-1 py-0.5 text-[9px] text-white">
-            {languageBadge}
-          </span>
+          <CourseBadge course={course} className="px-1 py-0.5 text-[9px]" />
           <span className="min-w-0 flex-1 truncate">
             {course.languageVersion} / {course.frameworkVersion}
           </span>
@@ -1910,9 +1949,7 @@ function TrackMenu({
             onClick={() => select(item.id)}
             className={itemClass(item.id)}
           >
-            <span className="min-w-8 rounded bg-[#785aa8] px-1 py-0.5 text-center text-[9px] text-white">
-              {courseBadgeText(item)}
-            </span>
+            <CourseBadge course={item} className="min-w-8 px-1 py-0.5 text-center text-[9px]" />
             <span className="min-w-0 flex-1 truncate">{item.title}</span>
             {courseId === item.id && <Check className="ml-auto shrink-0" size={14} />}
           </button>
