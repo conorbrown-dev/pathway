@@ -1517,6 +1517,681 @@ fn main() {
         tests: 5,
         runtime: 'rust',
       }
+    case 'rust-web-axum':
+      return {
+        files: { 'main.rs': `${code}
+
+#[derive(Clone, serde::Serialize)]
+struct Course {
+    id: String,
+    title: String,
+}
+
+fn catalog() -> Vec<Course> {
+    vec![
+        Course { id: String::from("rust"), title: String::from("Rust Systems") },
+        Course { id: String::from("sql"), title: String::from("SQLite") },
+    ]
+}
+
+async fn call(app: &axum::Router, method: &str, uri: &str, headers: &[(&str, &str)], body: &str) -> (u16, axum::http::HeaderMap, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let mut request = axum::http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app.clone().oneshot(request.body(axum::body::Body::from(body.to_string())).unwrap()).await.unwrap();
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap_or_else(|_| panic!("expected a JSON body, got {text:?}"))
+}
+
+const JSON: (&str, &str) = ("content-type", "application/json");
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let app = app();
+    let (status, _, body) = call(&app, "GET", "/health", &[], "").await;
+    assert_eq!((status, body.as_str()), (200, "ok"), "GET /health returns 200 with the text ok");
+    let (status, headers, body) = call(&app, "GET", "/courses/rust", &[], "").await;
+    assert_eq!(status, 200, "a known course is 200");
+    assert_eq!(headers.get("content-type").map(|v| v.to_str().unwrap()), Some("application/json"), "courses are returned as JSON");
+    assert_eq!(json(&body), serde_json::json!({"id": "rust", "title": "Rust Systems"}), "the course is serialized from the catalog");
+    let (status, _, _) = call(&app, "GET", "/courses/cobol", &[], "").await;
+    assert_eq!(status, 404, "an unknown course is 404 Not Found");
+    let (status, _, body) = call(&app, "POST", "/echo", &[JSON], r#"{"hello": [1, 2, 3]}"#).await;
+    assert_eq!((status, json(&body)), (200, serde_json::json!({"hello": [1, 2, 3]})), "POST /echo returns the JSON it received");
+    let (status, _, _) = call(&app, "POST", "/echo", &[], r#"{"hello": 1}"#).await;
+    assert_eq!(status, 415, "a JSON endpoint rejects a body without a JSON content type (415)");
+    let (status, _, _) = call(&app, "POST", "/echo", &[JSON], "{not json").await;
+    assert_eq!(status, 400, "malformed JSON is 400");
+    let (status, _, _) = call(&app, "POST", "/health", &[], "").await;
+    assert_eq!(status, 405, "the wrong method on a known path is 405");
+    let (status, _, _) = call(&app, "GET", "/nowhere", &[], "").await;
+    assert_eq!(status, 404, "an unknown path is 404");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-api-contracts':
+      return {
+        files: { 'main.rs': `${code}
+
+async fn call(app: &axum::Router, method: &str, uri: &str, headers: &[(&str, &str)], body: &str) -> (u16, axum::http::HeaderMap, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let mut request = axum::http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app.clone().oneshot(request.body(axum::body::Body::from(body.to_string())).unwrap()).await.unwrap();
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap_or_else(|_| panic!("expected a JSON body, got {text:?}"))
+}
+
+const JSON: (&str, &str) = ("content-type", "application/json");
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let app = app(std::sync::Arc::new(std::sync::Mutex::new(Store::default())));
+    let new = r#"{"learner": "ada", "course": "rust"}"#;
+    let (status, headers, body) = call(&app, "POST", "/v1/enrollments", &[JSON, ("idempotency-key", "k-1")], new).await;
+    assert_eq!(status, 201, "creating an enrollment is 201 Created");
+    assert_eq!(headers.get("location").map(|v| v.to_str().unwrap()), Some("/v1/enrollments/1"), "201 responses carry a Location header");
+    assert_eq!(json(&body), serde_json::json!({"id": 1, "learner": "ada", "course": "rust"}), "the created enrollment is returned");
+    let (status, headers, body) = call(&app, "POST", "/v1/enrollments", &[JSON, ("idempotency-key", "k-1")], new).await;
+    assert_eq!((status, json(&body)["id"].clone()), (201, serde_json::json!(1)), "retrying with the same Idempotency-Key returns the original result");
+    assert_eq!(headers.get("location").map(|v| v.to_str().unwrap()), Some("/v1/enrollments/1"), "the retry points at the same resource");
+    let (status, headers, body) = call(&app, "POST", "/v1/enrollments", &[JSON], new).await;
+    assert_eq!(status, 400, "a missing Idempotency-Key is 400");
+    assert_eq!(headers.get("content-type").map(|v| v.to_str().unwrap()), Some("application/problem+json"), "errors use application/problem+json");
+    assert_eq!(json(&body)["status"], serde_json::json!(400), "the problem document repeats the status");
+    let (status, _, body) = call(&app, "POST", "/v1/enrollments", &[JSON, ("idempotency-key", "k-2")], r#"{"learner": " ", "course": "rust"}"#).await;
+    assert_eq!((status, json(&body)["status"].clone()), (422, serde_json::json!(422)), "a blank learner is 422 with a problem document");
+    for n in 2..=60 {
+        let body = format!(r#"{{"learner": "l{n}", "course": "rust"}}"#);
+        let key = format!("key-{n}");
+        call(&app, "POST", "/v1/enrollments", &[JSON, ("idempotency-key", &key)], &body).await;
+    }
+    let (status, _, body) = call(&app, "GET", "/v1/enrollments?limit=2", &[], "").await;
+    let page = json(&body);
+    assert_eq!((status, page["items"].as_array().unwrap().len(), page["next"].clone()), (200, 2, serde_json::json!(2)), "limit=2 returns two items and a cursor to continue after");
+    let (_, _, body) = call(&app, "GET", "/v1/enrollments?limit=2&after=2", &[], "").await;
+    assert_eq!(json(&body)["items"][0]["id"], serde_json::json!(3), "after=2 continues from the next item");
+    let (_, _, body) = call(&app, "GET", "/v1/enrollments", &[], "").await;
+    assert_eq!(json(&body)["items"].as_array().unwrap().len(), 20, "the default page size is 20");
+    let (_, _, body) = call(&app, "GET", "/v1/enrollments?limit=1000", &[], "").await;
+    assert_eq!(json(&body)["items"].as_array().unwrap().len(), 50, "page sizes are capped at 50 however many are asked for");
+    let (_, _, body) = call(&app, "GET", "/v1/enrollments?limit=50&after=50", &[], "").await;
+    assert_eq!((json(&body)["items"].as_array().unwrap().len(), json(&body)["next"].clone()), (10, serde_json::Value::Null), "the last page has no next cursor");
+    let (status, _, _) = call(&app, "GET", "/v1/enrollments?limit=0", &[], "").await;
+    assert_eq!(status, 422, "limit=0 is rejected");
+    let (status, _, body) = call(&app, "GET", "/v1/enrollments/1", &[], "").await;
+    assert_eq!((status, json(&body)["learner"].clone()), (200, serde_json::json!("ada")), "an enrollment can be fetched by id");
+    let (status, headers, _) = call(&app, "GET", "/v1/enrollments/999", &[], "").await;
+    assert_eq!((status, headers.get("content-type").map(|v| v.to_str().unwrap().to_string())), (404, Some(String::from("application/problem+json"))), "an unknown id is 404 with a problem document");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-extractors-errors':
+      return {
+        files: { 'main.rs': `${code}
+
+async fn call(app: &axum::Router, method: &str, uri: &str, headers: &[(&str, &str)], body: &str) -> (u16, axum::http::HeaderMap, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let mut request = axum::http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app.clone().oneshot(request.body(axum::body::Body::from(body.to_string())).unwrap()).await.unwrap();
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap_or_else(|_| panic!("expected a JSON body, got {text:?}"))
+}
+
+const JSON: (&str, &str) = ("content-type", "application/json");
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    assert_eq!(Email::try_from(String::from("  Ada@Example.COM ")), Ok(Email(String::from("ada@example.com"))), "emails are trimmed and lowercased");
+    for bad in ["", "ada", "@example.com", "ada@", "ada@@example.com", "ada@example", "ada@.com"] {
+        assert!(matches!(Email::try_from(bad.to_string()), Err(ApiError::Validation(_))), "{bad:?} is not a valid email");
+    }
+    let app = app(std::sync::Arc::new(std::sync::Mutex::new(Vec::new())));
+    let (status, _, body) = call(&app, "POST", "/users", &[JSON], r#"{"email": "Ada@Example.com"}"#).await;
+    assert_eq!((status, json(&body)), (201, serde_json::json!({"id": 1, "email": "ada@example.com"})), "a valid user is created");
+    let (status, headers, body) = call(&app, "POST", "/users", &[JSON], r#"{"email": "ada@example.com"}"#).await;
+    assert_eq!(status, 409, "a duplicate email is 409 Conflict");
+    assert_eq!(headers.get("content-type").map(|v| v.to_str().unwrap()), Some("application/problem+json"), "conflicts are problem documents");
+    assert_eq!(json(&body)["status"], serde_json::json!(409), "the problem document repeats the status");
+    let (status, _, body) = call(&app, "POST", "/users", &[JSON], r#"{"email": "not-an-email"}"#).await;
+    assert_eq!((status, json(&body)["status"].clone()), (422, serde_json::json!(422)), "an invalid email is 422");
+    let (status, headers, body) = call(&app, "POST", "/users", &[JSON], "{broken").await;
+    assert_eq!(status, 400, "malformed JSON is 400");
+    assert_eq!(headers.get("content-type").map(|v| v.to_str().unwrap()), Some("application/problem+json"), "even extractor failures are returned as problem documents");
+    assert!(json(&body)["detail"].as_str().is_some_and(|detail| !detail.is_empty()), "the problem detail explains the rejection");
+    let (status, headers, _) = call(&app, "GET", "/users/abc", &[], "").await;
+    assert_eq!((status, headers.get("content-type").map(|v| v.to_str().unwrap().to_string())), (400, Some(String::from("application/problem+json"))), "a non-numeric id is 400 as a problem document");
+    let (status, _, body) = call(&app, "GET", "/users/1", &[], "").await;
+    assert_eq!((status, json(&body)["email"].clone()), (200, serde_json::json!("ada@example.com")), "users can be fetched");
+    let (status, _, body) = call(&app, "GET", "/users/42", &[], "").await;
+    assert_eq!((status, json(&body)["status"].clone()), (404, serde_json::json!(404)), "a missing user is 404");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-database-transactions':
+      return {
+        files: { 'main.rs': `${code}
+
+fn count(conn: &rusqlite::Connection, sql: &str) -> i64 {
+    conn.query_row(sql, [], |row| row.get(0)).unwrap()
+}
+
+fn main() {
+    let mut conn = rusqlite::Connection::open_in_memory().unwrap();
+    migrate(&conn).unwrap();
+    migrate(&conn).expect("running migrations twice is safe");
+    assert_eq!(count(&conn, "PRAGMA user_version"), 2, "migrations record the schema version");
+    let ada = open_account(&conn, "ada", 100).unwrap();
+    let grace = open_account(&conn, "grace", 50).unwrap();
+    assert_ne!(ada, grace, "each account gets its own id");
+    assert!(open_account(&conn, "ada", 5).is_err(), "owners are unique");
+    assert!(open_account(&conn, "debt", -1).is_err(), "the schema refuses negative balances");
+    let tricky = "o'brien'); DROP TABLE ledger; --";
+    open_account(&conn, tricky, 7).expect("names are passed as parameters, so quotes are just data");
+    assert_eq!(balance(&conn, tricky).unwrap(), Some(7), "the tricky name is stored exactly");
+    assert_eq!(count(&conn, "SELECT count(*) FROM sqlite_master WHERE name = 'ledger'"), 1, "no SQL from data was executed");
+    assert_eq!(balance(&conn, "nobody").unwrap(), None, "a missing owner has no balance");
+
+    assert_eq!(transfer(&mut conn, "ada", "grace", 30), Ok(()), "a valid transfer succeeds");
+    assert_eq!((balance(&conn, "ada").unwrap(), balance(&conn, "grace").unwrap()), (Some(70), Some(80)), "both balances change");
+    assert_eq!(count(&conn, "SELECT count(*) FROM ledger"), 1, "the transfer is recorded in the ledger");
+    assert_eq!(transfer(&mut conn, "ada", "grace", 500), Err(TransferError::InsufficientFunds), "overdrawing is refused");
+    assert_eq!(transfer(&mut conn, "ada", "nobody", 10), Err(TransferError::NoSuchAccount), "an unknown recipient is refused");
+    assert_eq!(transfer(&mut conn, "nobody", "ada", 10), Err(TransferError::NoSuchAccount), "an unknown sender is refused");
+    assert_eq!(transfer(&mut conn, "ada", "grace", 0), Err(TransferError::InvalidAmount), "zero is not a transfer");
+    assert_eq!(transfer(&mut conn, "ada", "grace", -5), Err(TransferError::InvalidAmount), "negative amounts are not transfers");
+    assert_eq!((balance(&conn, "ada").unwrap(), balance(&conn, "grace").unwrap()), (Some(70), Some(80)), "failed transfers change nothing: all or nothing");
+    assert_eq!(count(&conn, "SELECT count(*) FROM ledger"), 1, "failed transfers write no ledger rows");
+    assert_eq!(count(&conn, "SELECT sum(balance) FROM accounts"), 157, "money is never created or destroyed");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        // pathway-rustc links the image's prebuilt rusqlite (with SQLite compiled in).
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-auth-security':
+      return {
+        files: { 'main.rs': `${code}
+
+#[derive(Clone)]
+struct Principal {
+    user: String,
+    admin: bool,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct Note {
+    id: u64,
+    owner: String,
+    text: String,
+}
+
+struct AppState {
+    tokens: std::collections::HashMap<String, Principal>,
+    notes: std::sync::Mutex<std::collections::HashMap<u64, Note>>,
+}
+
+async fn call(app: &axum::Router, method: &str, uri: &str, headers: &[(&str, &str)], body: &str) -> (u16, axum::http::HeaderMap, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let mut request = axum::http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app.clone().oneshot(request.body(axum::body::Body::from(body.to_string())).unwrap()).await.unwrap();
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap_or_else(|_| panic!("expected a JSON body, got {text:?}"))
+}
+
+const JSON: (&str, &str) = ("content-type", "application/json");
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let tokens = [("t-ada", "ada", false), ("t-lin", "lin", false), ("t-root", "root", true)]
+        .into_iter()
+        .map(|(token, user, admin)| (token.to_string(), Principal { user: user.to_string(), admin }))
+        .collect();
+    let notes = [(1, "ada", "ada's plan"), (2, "lin", "lin's draft")]
+        .into_iter()
+        .map(|(id, owner, text)| (id, Note { id, owner: owner.to_string(), text: text.to_string() }))
+        .collect();
+    let app = app(std::sync::Arc::new(AppState { tokens, notes: std::sync::Mutex::new(notes) }));
+    let bearer = |token: &'static str| ("authorization", match token { "t-ada" => "Bearer t-ada", "t-lin" => "Bearer t-lin", "t-root" => "Bearer t-root", _ => "Bearer forged" });
+
+    let (status, headers, _) = call(&app, "GET", "/notes/1", &[], "").await;
+    assert_eq!(status, 401, "no credentials is 401 Unauthorized");
+    assert_eq!(headers.get("www-authenticate").map(|v| v.to_str().unwrap()), Some("Bearer"), "a 401 says which scheme to use");
+    let (status, headers, _) = call(&app, "GET", "/notes/1", &[bearer("bad")], "").await;
+    assert_eq!((status, headers.contains_key("www-authenticate")), (401, true), "an unknown token is 401, not 403");
+    let (status, _, _) = call(&app, "GET", "/notes/1", &[("authorization", "Basic YWRhOnB3")], "").await;
+    assert_eq!(status, 401, "a different scheme is not accepted");
+    let (status, _, body) = call(&app, "GET", "/notes/1", &[bearer("t-ada")], "").await;
+    assert_eq!((status, json(&body)["text"].clone()), (200, serde_json::json!("ada's plan")), "owners read their notes");
+    let (status, _, _) = call(&app, "GET", "/notes/1", &[bearer("t-lin")], "").await;
+    assert_eq!(status, 404, "another user's note is 404, so its existence isn't revealed");
+    let (status, _, _) = call(&app, "GET", "/notes/2", &[bearer("t-root")], "").await;
+    assert_eq!(status, 200, "an admin can read any note");
+    let (status, _, _) = call(&app, "DELETE", "/notes/2", &[bearer("t-root")], "").await;
+    assert_eq!(status, 403, "an admin who can see a note but may not delete it gets 403");
+    let (status, _, _) = call(&app, "DELETE", "/notes/2", &[bearer("t-ada")], "").await;
+    assert_eq!(status, 404, "a user who can't see the note gets 404 on delete too");
+    let (status, _, _) = call(&app, "DELETE", "/notes/2", &[], "").await;
+    assert_eq!(status, 401, "deleting without credentials is 401");
+    let (status, _, _) = call(&app, "DELETE", "/notes/2", &[bearer("t-lin")], "").await;
+    assert_eq!(status, 204, "owners delete their own notes");
+    let (status, _, _) = call(&app, "GET", "/notes/2", &[bearer("t-lin")], "").await;
+    assert_eq!(status, 404, "a deleted note is gone");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-testing-integration':
+      return {
+        files: { 'main.rs': `${code}
+
+trait Inventory {
+    fn reserve(&mut self, sku: &str, quantity: u32) -> bool;
+    fn release(&mut self, sku: &str, quantity: u32);
+}
+
+trait Payments {
+    fn charge(&mut self, cents: u64) -> Result<String, String>;
+}
+
+trait Clock {
+    fn now(&self) -> u64;
+}
+
+struct Line {
+    sku: String,
+    quantity: u32,
+    unit_cents: u64,
+}
+
+#[derive(Default)]
+struct FakeInventory {
+    stock: std::collections::HashMap<String, u32>,
+    log: Vec<String>,
+}
+
+impl Inventory for FakeInventory {
+    fn reserve(&mut self, sku: &str, quantity: u32) -> bool {
+        self.log.push(format!("reserve {sku} {quantity}"));
+        match self.stock.get_mut(sku) {
+            Some(available) if *available >= quantity => {
+                *available -= quantity;
+                true
+            }
+            _ => false,
+        }
+    }
+    fn release(&mut self, sku: &str, quantity: u32) {
+        self.log.push(format!("release {sku} {quantity}"));
+        *self.stock.entry(sku.to_string()).or_insert(0) += quantity;
+    }
+}
+
+struct FakePayments {
+    decline: bool,
+    charged: Vec<u64>,
+}
+
+impl Payments for FakePayments {
+    fn charge(&mut self, cents: u64) -> Result<String, String> {
+        self.charged.push(cents);
+        if self.decline { Err(String::from("card declined")) } else { Ok(format!("pay-{}", self.charged.len())) }
+    }
+}
+
+struct FixedClock(u64);
+
+impl Clock for FixedClock {
+    fn now(&self) -> u64 {
+        self.0
+    }
+}
+
+fn line(sku: &str, quantity: u32, unit_cents: u64) -> Line {
+    Line { sku: sku.to_string(), quantity, unit_cents }
+}
+
+fn inventory(items: &[(&str, u32)]) -> FakeInventory {
+    FakeInventory { stock: items.iter().map(|(sku, n)| (sku.to_string(), *n)).collect(), log: Vec::new() }
+}
+
+fn main() {
+    let clock = FixedClock(1_700_000_000);
+    let mut stock = inventory(&[("mug", 5), ("tee", 2)]);
+    let mut payments = FakePayments { decline: false, charged: Vec::new() };
+    let receipt = checkout(&[line("mug", 2, 1_250), line("tee", 1, 2_000)], &mut stock, &mut payments, &clock);
+    assert_eq!(receipt, Ok(Receipt { payment_id: String::from("pay-1"), total_cents: 4_500, at: 1_700_000_000 }), "a successful checkout charges the total and stamps the clock's time");
+    assert_eq!((stock.stock["mug"], stock.stock["tee"]), (3, 1), "stock is reserved");
+
+    let mut stock = inventory(&[("mug", 5)]);
+    let mut payments = FakePayments { decline: false, charged: Vec::new() };
+    assert_eq!(checkout(&[], &mut stock, &mut payments, &clock), Err(CheckoutError::EmptyCart), "an empty cart is refused");
+    assert!(payments.charged.is_empty() && stock.log.is_empty(), "an empty cart touches nothing");
+
+    let mut stock = inventory(&[("mug", 5), ("tee", 0)]);
+    let mut payments = FakePayments { decline: false, charged: Vec::new() };
+    let result = checkout(&[line("mug", 2, 1_250), line("tee", 1, 2_000)], &mut stock, &mut payments, &clock);
+    assert_eq!(result, Err(CheckoutError::OutOfStock(String::from("tee"))), "a missing item is reported by sku");
+    assert_eq!(stock.stock["mug"], 5, "items reserved before the shortage are released again");
+    assert!(payments.charged.is_empty(), "nothing is charged when stock is short");
+
+    let mut stock = inventory(&[("mug", 5)]);
+    let mut payments = FakePayments { decline: true, charged: Vec::new() };
+    let result = checkout(&[line("mug", 3, 1_000)], &mut stock, &mut payments, &clock);
+    assert_eq!(result, Err(CheckoutError::PaymentDeclined(String::from("card declined"))), "a declined payment is reported with its reason");
+    assert_eq!(stock.stock["mug"], 5, "a declined payment releases the reserved stock");
+    assert_eq!(stock.log, ["reserve mug 3", "release mug 3"], "reserve, charge, then release on failure");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
+    case 'rust-observability':
+      return {
+        files: { 'main.rs': `${code}
+
+async fn call(app: &axum::Router, method: &str, uri: &str, headers: &[(&str, &str)], body: &str) -> (u16, axum::http::HeaderMap, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let mut request = axum::http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app.clone().oneshot(request.body(axum::body::Body::from(body.to_string())).unwrap()).await.unwrap();
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap_or_else(|_| panic!("expected a JSON body, got {text:?}"))
+}
+
+const JSON: (&str, &str) = ("content-type", "application/json");
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let metrics = std::sync::Arc::new(Metrics::default());
+    let app = axum::Router::new()
+        .route("/courses/{id}", axum::routing::get(|| async { "course" }))
+        .route("/health", axum::routing::get(|| async { "ok" }))
+        .layer(axum::middleware::from_fn_with_state(metrics.clone(), track));
+    for uri in ["/courses/1", "/courses/2", "/courses/3", "/health", "/nowhere"] {
+        call(&app, "GET", uri, &[], "").await;
+    }
+    let text = metrics.render();
+    assert!(text.contains("http_requests_total{route=\\"/courses/{id}\\",status=\\"200\\"} 3\\n"), "requests are labelled by route template, not raw URL, so /courses/1, 2 and 3 share one series:\\n{text}");
+    assert!(text.contains("http_requests_total{route=\\"/health\\",status=\\"200\\"} 1\\n"), "each route has its own series:\\n{text}");
+    assert!(text.contains("route=\\"unmatched\\",status=\\"404\\"} 1"), "unknown paths are counted under one unmatched label:\\n{text}");
+    assert!(!text.contains("/courses/1"), "raw ids must never become labels:\\n{text}");
+    assert!(text.contains("http_request_duration_ms_count 5\\n"), "every request is timed:\\n{text}");
+
+    let manual = Metrics::default();
+    for duration in [3, 20, 20, 400, 9_000] {
+        manual.record("/x", 200, duration);
+    }
+    let text = manual.render();
+    for (bound, expected) in [("5", 1), ("25", 3), ("100", 3), ("500", 4), ("2500", 4), ("+Inf", 5)] {
+        let line = format!("http_request_duration_ms_bucket{{le=\\"{bound}\\"}} {expected}\\n");
+        assert!(text.contains(&line), "histogram buckets are cumulative: expected {line:?} in\\n{text}");
+    }
+    assert!(text.contains("http_request_duration_ms_sum 9443\\n") && text.contains("http_request_duration_ms_count 5\\n"), "sum and count are reported:\\n{text}");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-performance-profiling':
+      return {
+        files: { 'main.rs': `${code}
+
+trait CourseDb {
+    fn get(&self, id: u64) -> Option<String>;
+    fn get_many(&self, ids: &[u64]) -> Vec<(u64, String)>;
+}
+
+struct CountingDb {
+    queries: std::cell::Cell<usize>,
+}
+
+impl CourseDb for CountingDb {
+    fn get(&self, id: u64) -> Option<String> {
+        self.queries.set(self.queries.get() + 1);
+        (id % 10 != 0).then(|| format!("course {id}"))
+    }
+    fn get_many(&self, ids: &[u64]) -> Vec<(u64, String)> {
+        self.queries.set(self.queries.get() + 1);
+        let mut rows: Vec<(u64, String)> = ids.iter().filter(|id| *id % 10 != 0).map(|id| (*id, format!("course {id}"))).collect();
+        rows.reverse(); // a database returns rows in whatever order it likes
+        rows
+    }
+}
+
+fn main() {
+    let mut samples: Vec<u64> = (1..=100).rev().collect();
+    assert_eq!(percentile(&mut samples, 50.0), Some(50), "p50 of 1..=100");
+    assert_eq!(percentile(&mut samples, 99.0), Some(99), "p99 of 1..=100");
+    assert_eq!(percentile(&mut samples, 100.0), Some(100), "p100 is the maximum");
+    let mut small = vec![120, 15, 30, 900, 45];
+    assert_eq!(percentile(&mut small, 50.0), Some(45), "nearest rank: the median of five values is the third");
+    assert_eq!(percentile(&mut small, 90.0), Some(900), "p90 of five values is the largest");
+    assert_eq!(percentile(&mut small, 0.0), Some(15), "p0 is the minimum");
+    assert_eq!(percentile(&mut [], 50.0), None, "no samples, no percentile");
+    assert_eq!(percentile(&mut [1, 2], 150.0), None, "percentiles above 100 are invalid");
+    assert_eq!(required_workers(200.0, 50.0), 10, "200 req/s at 50 ms each keeps 10 requests in flight");
+    assert_eq!(required_workers(1_000.0, 120.0), 120, "Little's law");
+    assert_eq!(required_workers(30.0, 25.0), 1, "a fraction of a worker rounds up");
+    let db = CountingDb { queries: std::cell::Cell::new(0) };
+    let ids: Vec<u64> = (1..=25).collect();
+    let titles = load_titles(&ids, &db);
+    assert_eq!(titles.len(), 23, "ids 10 and 20 don't exist and are skipped");
+    assert_eq!((titles[0].as_str(), titles[22].as_str()), ("course 1", "course 25"), "titles come back in the requested order");
+    assert_eq!(db.queries.get(), 1, "load_titles must use one batched query, not one per id (it made {} queries)", db.queries.get());
+    let db = CountingDb { queries: std::cell::Cell::new(0) };
+    assert!(load_titles(&[], &db).is_empty() && db.queries.get() == 0, "no ids, no query");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-resilience-queues':
+      return {
+        files: { 'main.rs': `${code}
+
+fn main() {
+    assert_eq!(backoff_ms(0, 100, 10_000, 1.0), 100, "attempt 0 waits up to the base delay");
+    assert_eq!(backoff_ms(3, 100, 10_000, 1.0), 800, "the ceiling doubles each attempt");
+    assert_eq!(backoff_ms(3, 100, 10_000, 0.5), 400, "full jitter scales the ceiling by a random fraction");
+    assert_eq!(backoff_ms(10, 100, 10_000, 1.0), 10_000, "delays are capped");
+    assert_eq!(backoff_ms(70, 100, 10_000, 1.0), 10_000, "huge attempt numbers don't overflow");
+    assert_eq!(backoff_ms(60, 1_000, 30_000, 0.25), 7_500, "a shift that overflows u64 still saturates at the cap");
+
+    let mut breaker = CircuitBreaker::new(3, 1_000);
+    assert!(breaker.allow(0), "a closed breaker allows calls");
+    breaker.record_failure(10);
+    breaker.record_failure(20);
+    assert_eq!(breaker.state(), BreakerState::Closed, "two failures are under the threshold");
+    breaker.record_success();
+    breaker.record_failure(30);
+    breaker.record_failure(40);
+    assert_eq!(breaker.state(), BreakerState::Closed, "a success resets the failure count");
+    breaker.record_failure(50);
+    assert_eq!(breaker.state(), BreakerState::Open, "three failures in a row open the breaker");
+    assert!(!breaker.allow(500), "an open breaker fails fast during the cooldown");
+    assert!(breaker.allow(1_050), "after the cooldown one trial call is allowed");
+    assert_eq!(breaker.state(), BreakerState::HalfOpen, "the trial happens half-open");
+    assert!(!breaker.allow(1_060), "only one trial call at a time");
+    breaker.record_failure(1_070);
+    assert_eq!(breaker.state(), BreakerState::Open, "a failed trial reopens immediately");
+    assert!(!breaker.allow(1_500), "and restarts the cooldown");
+    assert!(breaker.allow(2_100), "the next trial after a new cooldown");
+    breaker.record_success();
+    assert_eq!(breaker.state(), BreakerState::Closed, "a successful trial closes the breaker");
+
+    let mut consumer = Consumer::new(3);
+    let mut calls = 0;
+    assert_eq!(consumer.deliver("job-1", &mut || { calls += 1; if calls < 2 { Err(String::from("timeout")) } else { Ok(()) } }), Outcome::Delivered { attempts: 2 }, "a transient failure is retried");
+    assert_eq!(consumer.deliver("job-1", &mut || panic!("a duplicate must not run the handler")), Outcome::Duplicate, "a redelivered message is recognised by id and skipped");
+    let mut attempts = 0;
+    let outcome = consumer.deliver("job-2", &mut || { attempts += 1; Err(format!("bad payload {attempts}")) });
+    assert_eq!(outcome, Outcome::DeadLettered { attempts: 3, last_error: String::from("bad payload 3") }, "after max attempts the message is dead-lettered with the last error");
+    assert_eq!(consumer.dead_letters, ["job-2"], "the dead-letter queue keeps the message for a person to inspect");
+    let mut ran = false;
+    assert_eq!(consumer.deliver("job-2", &mut || { ran = true; Ok(()) }), Outcome::Delivered { attempts: 1 }, "a dead-lettered job can be replayed once fixed");
+    assert!(ran, "the replay ran the handler");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'rustc --edition=2024 /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 3,
+        runtime: 'rust',
+      }
+    case 'rust-containers-delivery':
+      return {
+        files: { 'main.rs': `${code}
+
+async fn call(app: &axum::Router, method: &str, uri: &str, headers: &[(&str, &str)], body: &str) -> (u16, axum::http::HeaderMap, String) {
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    let mut request = axum::http::Request::builder().method(method).uri(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app.clone().oneshot(request.body(axum::body::Body::from(body.to_string())).unwrap()).await.unwrap();
+    let status = response.status().as_u16();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, String::from_utf8(bytes.to_vec()).unwrap())
+}
+
+fn json(text: &str) -> serde_json::Value {
+    serde_json::from_str(text).unwrap_or_else(|_| panic!("expected a JSON body, got {text:?}"))
+}
+
+const JSON: (&str, &str) = ("content-type", "application/json");
+
+fn env(pairs: &[(&str, &str)]) -> std::collections::HashMap<String, String> {
+    pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+}
+
+#[tokio::main]
+async fn main() {
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(6));
+        eprintln!("The test timed out: the server never finished shutting down.");
+        std::process::exit(1);
+    });
+    use std::sync::atomic::Ordering;
+    let secret = "postgres://app:hunter2@db/prod";
+    assert_eq!(load_config(&env(&[("PORT", "8080"), ("DATABASE_URL", secret)])), Ok(Config { port: 8080, database_url: secret.to_string(), log_level: String::from("info") }), "valid settings load, with LOG_LEVEL defaulting to info");
+    let problems = load_config(&env(&[("PORT", "eighty"), ("LOG_LEVEL", "loud")])).expect_err("bad settings are refused");
+    assert_eq!(problems.len(), 3, "every problem is reported at once, not just the first: {problems:?}");
+    assert!(problems.iter().any(|p| p.contains("PORT")) && problems.iter().any(|p| p.contains("DATABASE_URL")) && problems.iter().any(|p| p.contains("LOG_LEVEL")), "each problem names its variable: {problems:?}");
+    let problems = load_config(&env(&[("PORT", "0"), ("DATABASE_URL", "mysql://root:hunter2@db")])).expect_err("port 0 is refused");
+    assert!(problems.iter().all(|p| !p.contains("hunter2")), "error messages never include secret values: {problems:?}");
+
+    let health = std::sync::Arc::new(Health { ready: std::sync::atomic::AtomicBool::new(false), draining: std::sync::atomic::AtomicBool::new(false) });
+    let router = app(health.clone());
+    assert_eq!(call(&router, "GET", "/livez", &[], "").await.0, 200, "liveness is 200 while the process runs");
+    assert_eq!(call(&router, "GET", "/readyz", &[], "").await.0, 503, "not ready until startup work is done");
+    health.ready.store(true, Ordering::SeqCst);
+    assert_eq!(call(&router, "GET", "/readyz", &[], "").await.0, 200, "ready once startup completes");
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let router = app(health.clone()).route("/slow", axum::routing::get(|| async {
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        "done"
+    }));
+    let (stop, shutdown) = tokio::sync::oneshot::channel();
+    let server = tokio::spawn(serve_until(listener, router, health.clone(), shutdown));
+    let client = tokio::spawn(async move {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+        stream.write_all(b"GET /slow HTTP/1.1\\r\\nHost: test\\r\\nConnection: close\\r\\n\\r\\n").await.unwrap();
+        let mut reply = Vec::new();
+        let _ = stream.read_to_end(&mut reply).await;
+        String::from_utf8_lossy(&reply).into_owned()
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    stop.send(()).unwrap();
+    let signalled = std::time::Instant::now();
+    tokio::time::timeout(std::time::Duration::from_secs(3), server).await.expect("serve_until returns once in-flight requests finish").unwrap().unwrap();
+    let waited = signalled.elapsed();
+    assert!(waited >= std::time::Duration::from_millis(150), "serve_until returned {waited:?} after the signal, before the in-flight request finished: wait for it, or the process exits and cuts it off");
+    let reply = client.await.unwrap();
+    assert!(reply.starts_with("HTTP/1.1 200") && reply.ends_with("done"), "a request already in progress at shutdown still completes: got {reply:?}");
+    assert!(health.draining.load(Ordering::SeqCst), "shutdown marks the service as draining");
+    assert_eq!(call(&app(health.clone()), "GET", "/readyz", &[], "").await.0, 503, "a draining service reports not ready, so load balancers stop sending traffic");
+    println!("PATHWAY_TEST_PASS");
+}
+` },
+        command: ['/bin/sh', '-c', 'pathway-rustc /workspace/main.rs -o /workspace/main && /workspace/main'],
+        tests: 4,
+        runtime: 'rust',
+      }
     case 'rust-structs-enums':
       return {
         files: { 'main.rs': `${code}

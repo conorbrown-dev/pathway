@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
-using Pathway.Api;
+
 using Xunit;
 
 namespace Pathway.Api.Tests;

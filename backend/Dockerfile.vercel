@@ -1,0 +1,25 @@
+# Build context: backend/. Vercel's Container Runtime detects this file by name (Dockerfile.vercel)
+# when the project's root directory is backend; the Fly.io fallback config (fly.toml) builds the
+# same file.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+# Restore from the project files alone so the restore layer is cached until dependencies change.
+COPY Directory.Build.props ./
+COPY Pathway.Domain/Pathway.Domain.csproj Pathway.Domain/
+COPY Pathway.Content/Pathway.Content.csproj Pathway.Content/
+COPY Pathway.Infrastructure/Pathway.Infrastructure.csproj Pathway.Infrastructure/
+COPY Pathway.Api/Pathway.Api.csproj Pathway.Api/
+RUN dotnet restore Pathway.Api/Pathway.Api.csproj
+COPY . ./
+RUN dotnet publish Pathway.Api/Pathway.Api.csproj --configuration Release --no-restore --output /app
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+COPY --from=build /app ./
+ENV ASPNETCORE_ENVIRONMENT=Production \
+    PORT=8080
+EXPOSE 8080
+# The aspnet image ships a non-root "app" user; never run the API as root.
+USER $APP_UID
+# Listen on $PORT, which the hosting platform may override.
+CMD ["sh", "-c", "exec dotnet Pathway.Api.dll --urls http://+:${PORT}"]

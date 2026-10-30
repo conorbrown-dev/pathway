@@ -1,6 +1,6 @@
 # Precalculus curriculum
 
-Course id `precalculus` · languageId `math` · lessons in `backend/Pathway.Api/PrecalculusCurriculum.cs`
+Course id `precalculus` · languageId `math` · lessons in `backend/Pathway.Content/Courses/PrecalculusCurriculum.cs`
 Reference text: [OpenStax Precalculus 2e](https://openstax.org/details/books/precalculus-2e) · Last reviewed 2026-10-25
 
 ## Who it's for
