@@ -117,6 +117,7 @@ test('serves learning-experience templates, checkpoints, and guarded coaching', 
 })
 
 test('deep-links every published course and representative lessons', async ({ page, request }) => {
+  test.setTimeout(120_000) // Traverses all published courses; grows as curriculum expands.
   const catalogResponse = await request.get(`${apiBaseUrl}/api/courses`)
   await expect(catalogResponse).toBeOK()
   const catalog = await catalogResponse.json() as { id: string; available: boolean }[]
@@ -251,7 +252,7 @@ test('renders lesson-body headings, lists, and fenced code instead of raw Markdo
 
 test('loads the first lesson for a guest learner', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
-  await page.goto('/')
+  await page.goto('/courses/csharp-dotnet')
   await expect(page).toHaveTitle('Pathway — Learn C#')
 
   await expect(page.getByRole('heading', { name: 'How code works' })).toBeVisible()
@@ -295,7 +296,7 @@ test('renders numeric EE exercises, accepts tolerance, unlocks the next lesson, 
       'ee-dc-vs-ac-motion',
     ]))
   })
-  await page.goto('/')
+  await page.goto('/courses/electrical-engineering-foundations/lessons/ee-charge-voltage-current')
 
   await page.getByRole('button', { name: 'Ohm\'s law: V = IR' }).click()
   await expect(page.getByText('A 12 V source is connected across a 330 Ω resistor. What current flows?')).toBeVisible()
@@ -331,7 +332,7 @@ test('runs an interactive EE circuit measurement lab and unlocks progression', a
       'ee-resistors-real-designs',
     ]))
   })
-  await page.goto('/')
+  await page.goto('/courses/electrical-engineering-foundations/lessons/ee-charge-voltage-current')
 
   await page.getByRole('button', { name: 'Voltage and current division' }).click()
   await expect(page.getByText('VIRTUAL MULTIMETER')).toBeVisible()
@@ -383,7 +384,7 @@ test('completes the EE troubleshooting capstone with a measurement and diagnosis
       'ee-digital-electrical',
     ]))
   })
-  await page.goto('/')
+  await page.goto('/courses/electrical-engineering-foundations/lessons/ee-charge-voltage-current')
 
   await page.getByRole('button', { name: 'Datasheets, tolerances, and systematic debugging' }).click()
   await expect(page.getByText('Troubleshooting capstone')).toBeVisible()
@@ -412,7 +413,7 @@ test('onboarding selects the Rust systems track', async ({ page }) => {
 
 test('checks an answer, persists progress, unlocks the next lesson, and supports review', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
-  await page.goto('/')
+  await page.goto('/courses/csharp-dotnet')
 
   await page.getByRole('button', { name: /Prints a message to the console/i }).click()
   await page.getByRole('button', { name: /Check answer/i }).click()
@@ -438,7 +439,7 @@ test('validates a code exercise and supports reset and worked-example review', a
     localStorage.setItem('pathway-learner-id', 'code-exercise-guest')
     localStorage.setItem('pathway-completed-lessons:guest:code-exercise-guest', JSON.stringify(['foundations-how-code-works', 'foundations-values', 'foundations-data-types', 'foundations-operators']))
   })
-  await page.goto('/')
+  await page.goto('/courses/csharp-dotnet/lessons/foundations-how-code-works')
 
   await page.getByRole('button', { name: 'Making decisions' }).click()
   const editor = page.locator('.monaco-editor .view-lines')
@@ -463,7 +464,7 @@ test('loads the selected Python track for a guest learner', async ({ page }) => 
     localStorage.setItem('pathway-onboarding-complete', 'true')
     localStorage.setItem('pathway-course-id', 'python-web')
   })
-  await page.goto('/')
+  await page.goto('/courses/python-web')
 
   await expect(page.getByRole('heading', { name: 'Values and variables' })).toBeVisible()
   await expect(page.getByText('What is `completed_lessons` in this example?')).toBeVisible()
@@ -474,7 +475,7 @@ test('loads the Claude Hooks course as presentation-only content', async ({ page
     localStorage.setItem('pathway-onboarding-complete', 'true')
     localStorage.setItem('pathway-course-id', 'claude-engineering')
   })
-  await page.goto('/')
+  await page.goto('/courses/claude-engineering')
 
   await expect(page).toHaveTitle('Pathway — Claude Engineering')
   await expect(page.getByRole('heading', { name: 'Hooks are lifecycle middleware' })).toBeVisible()
@@ -522,7 +523,7 @@ test('runs the Claude PreToolUse Hook Playground against simulated Bash commands
     })
   })
 
-  await page.goto('/')
+  await page.goto('/courses/claude-engineering')
   await page.getByRole('button', { name: 'Guard actions before they run' }).click()
   await expect(page.getByRole('heading', { name: 'Run a real PreToolUse hook' })).toBeVisible()
   await page.getByRole('button', { name: 'Run hook' }).click()
@@ -540,7 +541,7 @@ test('loads Web Development Basics as its own course', async ({ page }) => {
     localStorage.setItem('pathway-onboarding-complete', 'true')
     localStorage.setItem('pathway-course-id', 'web-development-basics')
   })
-  await page.goto('/')
+  await page.goto('/courses/web-development-basics')
 
   await expect(page).toHaveTitle('Pathway — Web Development Basics')
   await expect(page.getByRole('heading', { name: 'How a web application fits together', level: 1 })).toBeVisible()
@@ -557,7 +558,7 @@ test('loads Linux CLI Bash Vim and reaches a Bash sandbox exercise', async ({ pa
       'linux-shell-terminal',
     ]))
   })
-  await page.goto('/')
+  await page.goto('/courses/linux-cli-bash-vim/lessons/linux-shell-terminal')
 
   await expect(page).toHaveTitle('Pathway — Linux CLI / Bash / Vim')
   await expect(page.getByRole('heading', { name: 'Understand the terminal, shell, and command', level: 1 })).toBeVisible()
@@ -588,7 +589,7 @@ test('loads SQLite with SQL syntax highlighting and an editable SQL exercise', a
       'sqlite-db-browser',
     ]))
   })
-  await page.goto('/')
+  await page.goto('/courses/sqlite/lessons/sqlite-what-it-is')
 
   await expect(page).toHaveTitle('Pathway — SQLite')
   await expect(page.getByRole('heading', { name: 'Understand what SQLite is', level: 1 })).toBeVisible()
@@ -623,7 +624,7 @@ test('loads React Lite and reaches a TypeScript exercise without Web Basics less
       'react-lite-folder-structure',
     ]))
   })
-  await page.goto('/')
+  await page.goto('/courses/react-lite/lessons/react-lite-vite-bootstrap')
 
   await expect(page).toHaveTitle('Pathway — React Lite 2026')
   await expect(page.getByRole('heading', { name: 'Bootstrap a modern React application', level: 1 })).toBeVisible()
@@ -640,7 +641,7 @@ test('loads the selected React enterprise track with a TypeScript exercise edito
     localStorage.setItem('pathway-onboarding-complete', 'true')
     localStorage.setItem('pathway-course-id', 'react-enterprise')
   })
-  await page.goto('/')
+  await page.goto('/courses/react-enterprise')
 
   await expect(page).toHaveTitle('Pathway — React 2026')
   await expect(page.getByRole('heading', { name: 'Bootstrap React with Vite and TypeScript', level: 1 })).toBeVisible()
@@ -668,7 +669,7 @@ test('loads the selected Git CLI track with a shell exercise editor', async ({ p
     localStorage.setItem('pathway-onboarding-complete', 'true')
     localStorage.setItem('pathway-course-id', 'git-cli')
   })
-  await page.goto('/')
+  await page.goto('/courses/git-cli')
 
   await expect(page).toHaveTitle('Pathway — Git CLI')
   await expect(page.getByRole('heading', { name: 'Create a repository and read its state', level: 1 })).toBeVisible()
@@ -682,7 +683,7 @@ test('loads the selected Rust track for a guest learner', async ({ page }) => {
     localStorage.setItem('pathway-onboarding-complete', 'true')
     localStorage.setItem('pathway-course-id', 'rust-systems')
   })
-  await page.goto('/')
+  await page.goto('/courses/rust-systems')
 
   await expect(page).toHaveTitle('Pathway — Learn Rust')
   await expect(page.getByRole('heading', { name: 'Why Rust? Strengths, trade-offs, installation, and first project', level: 1 })).toBeVisible()
@@ -702,7 +703,7 @@ test('unlocks resilient HTTP clients after the preceding Python lesson passes', 
     localStorage.setItem('pathway-completed-lessons:guest:python-unlock-guest', JSON.stringify(progress))
   }, completed)
   await page.route('**/api/progress', route => route.fulfill({ status: 401 }))
-  await page.goto('/')
+  await page.goto('/courses/python-web')
 
   await page.getByRole('button', { name: 'Test with pytest and a deliberate pyramid' }).click()
   await page.getByRole('button', { name: /The observable status and response contract/i }).click()
@@ -716,14 +717,14 @@ test('does not show legacy browser progress after the owner logs out', async ({ 
     localStorage.setItem('pathway-learner-id', 'new-guest')
     localStorage.setItem('pathway-completed-lessons', JSON.stringify(['foundations-how-code-works']))
   })
-  await page.goto('/')
+  await page.goto('/courses/csharp-dotnet')
 
   await expect(page.getByRole('button', { name: 'Values and variables locked' })).toBeVisible()
 })
 
 test('navigates workspaces and switches tracks from the sidebar', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
-  await page.goto('/')
+  await page.goto('/courses/csharp-dotnet')
   await expect(page).toHaveTitle('Pathway — Learn C#')
 
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
@@ -753,7 +754,7 @@ test('navigates workspaces and switches tracks from the sidebar', async ({ page 
 
 test('persists the selected neon accent after a reload', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
-  await page.goto('/')
+  await page.goto('/courses/csharp-dotnet')
   await page.getByRole('button', { name: 'Pink theme' }).click()
   await expect(page.locator('html')).toHaveAttribute('data-accent', 'pink')
   await page.reload()
@@ -777,4 +778,168 @@ test('exposes the learning-experience workspaces for a guest learner', async ({ 
   await expect(page.getByText('PEER REVIEW & OFFICE HOURS')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Save collaboration preferences' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Post to community' })).toBeVisible()
+})
+
+test('math and engineering lessons offer a calculator that can fill a numeric answer', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
+  await page.goto('/courses/precalculus/lessons/math-negative-numbers')
+  await page.getByRole('button', { name: 'Calculator', exact: true }).click()
+  const calculator = page.getByRole('complementary', { name: 'Calculator' })
+  const input = calculator.getByLabel('Expression')
+  await input.fill('−350 − (−90)')
+  await input.press('Enter')
+  await expect(calculator.getByText('= −260')).toBeVisible()
+  // Grouping is made explicit so learners see how their expression was read.
+  await input.fill('2 + 3 × 4')
+  await input.press('Enter')
+  await expect(calculator.getByText('read as 2 + (3 × 4)')).toBeVisible()
+  await calculator.getByRole('button', { name: 'Use in answer' }).first().click()
+  await expect(page.locator('#numeric-answer-math-negative-numbers')).toHaveValue('-260')
+
+  // Engineering courses read SI prefixes and parallel combinations.
+  await page.goto('/courses/electrical-engineering-foundations/lessons/ee-ohms-law')
+  await page.getByRole('button', { name: 'Calculator', exact: true }).click()
+  const eeInput = page.getByRole('complementary', { name: 'Calculator' }).getByLabel('Expression')
+  await eeInput.fill('10k || 10k')
+  await eeInput.press('Enter')
+  await expect(page.getByRole('complementary', { name: 'Calculator' }).getByText('= 5,000')).toBeVisible()
+
+  // Courses without numeric work don't show it.
+  await page.goto('/courses/git-cli')
+  await expect(page.getByRole('button', { name: 'Calculator', exact: true })).toHaveCount(0)
+})
+
+
+test('signed numeric answers can be toggled on mobile-style decimal inputs', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
+  await page.goto('/courses/precalculus/lessons/math-negative-numbers')
+  const answer = page.getByLabel('Numeric answer')
+  await answer.fill('260')
+  const sign = page.getByRole('button', { name: 'Toggle positive or negative' })
+  await sign.click()
+  await expect(answer).toHaveValue('-260')
+  await expect(sign).toHaveAttribute('aria-pressed', 'true')
+  await sign.click()
+  await expect(answer).toHaveValue('260')
+  await answer.fill('')
+  await sign.click()
+  await expect(answer).toHaveValue('-')
+  await answer.fill('260')
+  await page.getByRole('button', { name: /Check answer/i }).click()
+  await expect(page.getByText('Correct', { exact: true })).toBeVisible()
+})
+
+test('electrical wave graphs update amplitude, period and phase interactively', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
+  await page.goto('/courses/electrical-engineering-foundations/lessons/ee-wave-phase')
+  const graph = page.getByRole('region', { name: 'Interactive wave graph' })
+  await expect(graph).toBeVisible()
+  const amplitude = graph.getByRole('slider', { name: 'Amplitude' })
+  await amplitude.focus()
+  await amplitude.press('End')
+  await amplitude.press('ArrowLeft')
+  await amplitude.press('ArrowLeft')
+  const period = graph.getByRole('slider', { name: 'Period' })
+  await period.focus()
+  await period.press('Home')
+  await period.press('ArrowRight')
+  const phase = graph.getByRole('slider', { name: 'Phase' })
+  await phase.focus()
+  await phase.press('End')
+  for (let n = 0; n < 6; n++) await phase.press('ArrowLeft')
+  await expect(graph.getByRole('img', { name: /Sine graph/ })).toHaveAttribute('aria-label', /amplitude 4, period 1 seconds, phase 90 degrees/)
+  await expect(graph.getByText(/value = 4.00/)).toBeVisible()
+  await page.goto('/courses/electrical-engineering-foundations/lessons/ee-phasors')
+  await expect(page.getByRole('img', { name: /Phasor direction/ })).toBeVisible()
+})
+
+
+test('Algebra I accepts a genuinely negative numeric answer', async ({ request }) => {
+  const response = await request.post(`${apiBaseUrl}/api/submissions/validate`, {
+    data: { lessonSlug: 'algebra1-slope-from-points', answer: '-3', unit: 'units/unit', code: '' },
+  })
+  expect(response.ok()).toBeTruthy()
+  const result = await response.json()
+  expect(result.passed).toBe(true)
+})
+
+
+test('math practice grants feedback but only an eight-question mastery check unlocks progression', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('pathway-onboarding-complete', 'true')
+    localStorage.setItem('pathway-learner-id', 'mastery-e2e-unique-learner')
+  })
+  await page.goto('/courses/precalculus/lessons/math-negative-numbers')
+  const begin = page.getByRole('button', { name: 'Begin mastery check' })
+  await expect(begin).toBeDisabled()
+  await page.getByLabel('Numeric answer').fill('260')
+  await page.getByRole('button', { name: /Check answer/i }).click()
+  await expect(page.getByText('Correct', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Next lesson/i })).toHaveCount(0)
+  await expect(begin).toBeEnabled()
+  await begin.click()
+  await expect(page.getByRole('group', { name: /^Question/ })).toHaveCount(8)
+  await page.getByRole('button', { name: /Submit all 8 answers/i }).click()
+  await expect(page.getByRole('alert')).toContainText('Answer every question')
+  await expect(page.getByRole('button', { name: /Next lesson/i })).toHaveCount(0)
+})
+
+test('the base URL shows the course catalogue instead of redirecting to the last course', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('pathway-onboarding-complete', 'true')
+    localStorage.setItem('pathway-course-id', 'python-web')
+  })
+  await page.goto('/')
+
+  const heading = page.getByRole('heading', { name: 'Choose a course', level: 1 })
+  await expect(heading).toBeVisible()
+  expect(new URL(page.url()).pathname).toBe('/')
+  await page.reload()
+  await expect(heading).toBeVisible()
+  expect(new URL(page.url()).pathname).toBe('/')
+
+  // The last course is offered as a shortcut, not forced.
+  await page.getByRole('button', { name: /Continue where you left off/i }).click()
+  await expect.poll(() => new URL(page.url()).pathname).toMatch(/^\/courses\/python-web\/lessons\//)
+  await expect(page).toHaveTitle('Pathway — Learn Python')
+})
+
+test('on a phone the learner can leave a course from the navigation drawer', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
+  await page.goto('/courses/csharp-dotnet')
+  await expect(page.getByRole('heading', { name: 'How code works' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  const drawer = page.getByRole('dialog', { name: 'Course navigation' })
+  await expect(drawer).toBeVisible()
+  await drawer.getByRole('button', { name: 'All courses' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Choose a course', level: 1 })).toBeVisible()
+  expect(new URL(page.url()).pathname).toBe('/')
+  await expect(drawer).toHaveCount(0)
+
+  // Another course is reachable from there, and Back returns to the catalogue.
+  await page.getByRole('button', { name: /Python Web/i }).first().click()
+  await expect(page.getByRole('heading', { name: 'Values and variables' })).toBeVisible()
+  await page.goBack()
+  await expect(page.getByRole('heading', { name: 'Choose a course', level: 1 })).toBeVisible()
+  expect(new URL(page.url()).pathname).toBe('/')
+})
+
+test('the phone navigation drawer switches lessons and closes with Escape', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.addInitScript(() => localStorage.setItem('pathway-onboarding-complete', 'true'))
+  await page.goto('/courses/csharp-dotnet')
+
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  const drawer = page.getByRole('dialog', { name: 'Course navigation' })
+  await expect(drawer.getByRole('button', { name: 'How code works' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(drawer).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  await drawer.getByRole('button', { name: 'Practice' }).click()
+  await expect(drawer).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Strengthen the signal.' })).toBeVisible()
 })

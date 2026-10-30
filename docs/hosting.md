@@ -13,7 +13,7 @@ browser ──► pathway.orangecastle.net (Vercel project "pathway", Vite SPA)
 | Piece | Where | Source | Builds on |
 | --- | --- | --- | --- |
 | Frontend | Vercel `pathway` | `frontend/` (`vercel.json`) | push to `main` (previews for branches) |
-| API | Vercel `pathway-api`, Container Runtime | `backend/Pathway.Api/Dockerfile.vercel` | push to `main` |
+| API | Vercel `pathway-api`, Container Runtime (root directory `backend`) | `backend/Dockerfile.vercel` | push to `main` |
 | Evaluator broker | Vercel `pathway-broker`, Container Runtime | `sandbox-broker/Dockerfile.vercel` | push to `main` |
 | Code sandboxes | Vercel Sandbox, images in `pathway-broker`'s Container Registry | `sandbox-broker/images/*/Dockerfile` | Sandbox images workflow on `main` |
 | Database | Neon `pathway` (`twilight-frog-83291776`), us-east-1, free plan | created via Vercel → Storage | n/a |
@@ -131,7 +131,7 @@ The policy is in place: **pathway sandbox images** (Team Settings → Build and 
 
 ## Fallback: Fly.io
 
-`backend/Pathway.Api/fly.toml` and `sandbox-broker/fly.toml` build the same `Dockerfile.vercel` images, for running always-on (no cold starts) on Fly.io if Vercel's Container Runtime, still in beta, falls short. Deploy with `fly deploy --config <path>/fly.toml <path>`. Set the same variables, use `HOST=::` for the broker on Fly's IPv6 private network, and point `EVALUATOR_URL` at `http://pathway-broker.internal:8080`.
+`backend/fly.toml` and `sandbox-broker/fly.toml` build the same `Dockerfile.vercel` images, for running always-on (no cold starts) on Fly.io if Vercel's Container Runtime, still in beta, falls short. Deploy with `fly deploy --config <path>/fly.toml <path>`. Set the same variables, use `HOST=::` for the broker on Fly's IPv6 private network, and point `EVALUATOR_URL` at `http://pathway-broker.internal:8080`.
 
 ## Retiring Railway
 
