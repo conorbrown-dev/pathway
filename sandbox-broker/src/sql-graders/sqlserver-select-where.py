@@ -1,30 +1,32 @@
 # tests: 3
-# Exercise: return the name and city of every active customer who is not in London, newest id
-# first. Teaches WHERE, NULL-aware comparison and ORDER BY.
+# Exercise: names and prices of Tea products that cost at least 10.
+
 SETUP = """
-CREATE TABLE Customers (
-    CustomerId INT IDENTITY(1,1) PRIMARY KEY,
+CREATE TABLE Products (
+    ProductId INT IDENTITY(1,1) PRIMARY KEY,
     Name NVARCHAR(50) NOT NULL,
-    City VARCHAR(30) NULL,
-    Active BIT NOT NULL DEFAULT 1
+    Category VARCHAR(20) NOT NULL,
+    Price DECIMAL(8,2) NOT NULL
 );
-INSERT INTO Customers (Name, City, Active) VALUES
-  ('Ada', 'London', 1), ('Grace', 'New York', 1), ('Linus', NULL, 1),
-  ('Edsger', 'Austin', 0), ('Barbara', 'Boston', 1);
 """
+ROWS_A = "INSERT INTO Products (Name, Category, Price) VALUES ('Sencha','Tea',12.50),('Earl Grey','Tea',9.99),('Espresso','Coffee',14.00),('Matcha','Tea',25.00),('Mug','Gear',10.00);"
+ROWS_B = "INSERT INTO Products (Name, Category, Price) VALUES ('Oolong','Tea',10.00),('Chai','tea',11.00),('Mate','Tea',9.00),('Pot','Gear',40.00);"
+
+
+def attempt(rows):
+    session = new_db(SETUP + rows)
+    return last_result(run_learner(session), "the products")
 
 
 def main():
-    session = new_db(SETUP)
-    result = last_result(run_learner(session), "the customers")
-    expect_columns(result.columns, ["Name", "City"], "Column names")
-    test("returns Name and City")
-    got = [list(r) for r in result]
-    check(all(r[0] != "Ada" for r in got), "Ada lives in London, so she should be left out.")
-    check(all(r[0] != "Edsger" for r in got), "Edsger is not active, so he should be left out.")
-    test("filters on Active and City")
-    expect_rows(got, [["Barbara", "Boston"], ["Linus", None], ["Grace", "New York"]], "Rows")
-    test("keeps the customer whose City is NULL, newest first")
+    result = attempt(ROWS_A)
+    expect_columns(result.columns, ["Name", "Price"], "Column names")
+    test("returns Name and Price")
+    expect_rows(result, [["Sencha", 12.5], ["Matcha", 25.0]], "Tea products costing 10 or more", ordered=False)
+    test("keeps only Tea at 10 or more")
+    # Same query, different data: catches answers that hard-code the first data set.
+    expect_rows(attempt(ROWS_B), [["Oolong", 10.0], ["Chai", 11.0]], "With different data (10.00 exactly counts, and text matching ignores case)", ordered=False)
+    test("still right when the data changes")
 
 
 run(main)

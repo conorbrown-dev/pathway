@@ -1,0 +1,6 @@
+CREATE TABLE Books (
+    BookId INT NOT NULL PRIMARY KEY,
+    Isbn   VARCHAR(20) NOT NULL UNIQUE,
+    Title  NVARCHAR(200) NOT NULL,
+    Pages  INT NULL
+);

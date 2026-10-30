@@ -1,4 +1,3 @@
-SELECT Name, City
-FROM Customers
-WHERE Active = 1 AND (City <> 'London' OR City IS NULL)
-ORDER BY CustomerId DESC;
+SELECT Name, Price
+FROM Products
+WHERE Category = 'Tea' AND Price >= 10;

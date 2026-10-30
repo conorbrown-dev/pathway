@@ -1,5 +1,4 @@
--- expect: Linus
-SELECT Name, City
-FROM Customers
-WHERE Active = 1 AND City <> 'London'
-ORDER BY CustomerId DESC;
+-- expect: 10.00 exactly counts
+SELECT Name, Price
+FROM Products
+WHERE Category = 'Tea' AND Price > 10;
