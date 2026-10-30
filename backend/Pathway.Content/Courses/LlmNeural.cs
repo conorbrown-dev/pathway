@@ -1,3 +1,5 @@
+namespace Pathway.Content;
+
 static partial class Curriculum
 {
     // Module 4 of the AI & LLM course: neurons and layers, backpropagation (the learner builds a

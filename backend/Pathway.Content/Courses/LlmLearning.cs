@@ -1,3 +1,5 @@
+namespace Pathway.Content;
+
 static partial class Curriculum
 {
     // Module 3 of the AI & LLM course: loss functions, gradient descent, generalization and
