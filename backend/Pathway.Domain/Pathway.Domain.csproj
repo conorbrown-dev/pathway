@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The course model and grading rules. No references to web, database or other Pathway projects. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Pathway.Api.Tests" />
+  </ItemGroup>
+</Project>
