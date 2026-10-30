@@ -265,6 +265,22 @@ public class CurriculumInvariantTests
         Assert.True(orphaned.Length == 0, $"Graders without a matching code lesson: {string.Join(", ", orphaned)}");
     }
 
+    [Fact]
+    public void Llm_checkpoint_and_capstones_point_at_real_lessons()
+    {
+        var slugs = LessonsOf("ai-llm-engineering").Select(lesson => lesson.Slug).ToHashSet();
+        var assessment = AssessmentCatalog.Get("ai-llm-engineering", "llm-end-to-end");
+        Assert.NotNull(assessment);
+        Assert.True(assessment!.Questions.Length >= 12, "The end-to-end checkpoint should cover the whole course.");
+        Assert.All(assessment.Questions, question =>
+        {
+            Assert.Contains(question.CorrectAnswer, question.Choices);
+            Assert.True(slugs.Contains(question.ReviewLessonSlug), $"{question.Id}: review lesson '{question.ReviewLessonSlug}' is not in the course.");
+        });
+        Assert.Equal(2, CareerReadinessCatalog.Capstones.Count(capstone => capstone.CourseId == "ai-llm-engineering"));
+        Assert.Equal("llm-present-ai-end-to-end", LessonsOf("ai-llm-engineering").Last().Slug);
+    }
+
     [Theory]
     [InlineData("rust-hello-functions")]
     [InlineData("rust-bindings-types")]

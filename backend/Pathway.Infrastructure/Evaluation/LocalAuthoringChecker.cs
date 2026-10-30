@@ -200,7 +200,10 @@ public static class LocalAuthoringChecker
                 .SelectMany(requirement => System.Text.RegularExpressions.Regex.Matches(requirement, @"`(\w+)\(").Select(match => match.Groups[1].Value))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
-            var llmPassed = required.Length > 0 && required.All(name => code.Contains($"def {name}(", StringComparison.Ordinal));
+            // A lesson whose answer is a config file (no functions to define) only needs to look like JSON here.
+            var llmPassed = required.Length > 0
+                ? required.All(name => code.Contains($"def {name}(", StringComparison.Ordinal))
+                : code.TrimStart().StartsWith('{');
             return new ValidationResult(llmPassed, llmPassed ? 2 : 0, 2, llmPassed ? "Every required function is defined. Deployed lessons run the full grader in the sandbox." : lesson.Exercise.Hint, llmPassed ? lesson.NextSlug : null, CodeReviewer.Review(lesson, code));
         }
         if (lesson.Slug.StartsWith("python-", StringComparison.Ordinal))

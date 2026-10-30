@@ -54,8 +54,8 @@ for (const name of solutions) {
     assert.equal(result.passed, shouldPass, result.output.slice(0, 2_000))
     // A failing solution names the feedback it should produce, so it fails for the intended reason.
     if (!shouldPass) {
-      const expected = /^# expect: (.+)$/m.exec(code)?.[1]
-      assert.ok(expected, `${name} needs a "# expect: <feedback text>" line`)
+      const expected = /^(?:#|\/\/) expect: (.+)$/m.exec(code)?.[1]
+      assert.ok(expected, `${name} needs a "# expect: <feedback text>" (or "// expect:") line`)
       assert.ok(result.output.includes(expected.trim()), `${name} failed, but not with "${expected}":\n${result.output.slice(0, 1_000)}`)
     }
   })

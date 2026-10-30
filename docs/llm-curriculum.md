@@ -42,9 +42,12 @@ By the end, a learner can explain every stage of how a modern LLM is built and u
 | Transformers | Why attention · self-attention · multi-head attention and position · the transformer block · sampling and decoding · lab: train a tiny GPT |
 | How frontier models are made | Pretraining at scale · instruction tuning · preference tuning and RL · evaluation |
 | LLMs in real systems | Inference memory and quantization · context engineering · tool calling and agent harnesses · retrieval · safety and security |
-| Capstone: your model in opencode | Dataset · LoRA fine-tuning · evaluation against the base and a frontier model · serving locally · opencode with Claude/Codex · presenting AI end to end |
+| Capstone: your model in opencode | Dataset (evaluation set first) · LoRA math · fine-tune lab (TRL/PEFT or MLX-LM) · evaluation against the base and a frontier model (paired sign test) · serving with llama.cpp or Ollama over the OpenAI-compatible API · opencode subagent beside Claude/Codex · presenting AI end to end |
 
 ## The capstone
+
+43 lessons in total. The course also has an end-to-end checkpoint (`AssessmentCatalog`, module `llm-end-to-end`) and two career capstones (`CareerReadinessCatalog`): the from-scratch GPT and the opencode specialist.
+
 
 The learner picks a narrow, checkable job a small model can learn, such as writing commit messages in their team's style, labelling support tickets, or reviewing test names. They:
 
@@ -66,4 +69,4 @@ Before that, the Transformers module ends with training a small GPT from scratch
 - Hu et al., "LoRA: Low-Rank Adaptation of Large Language Models" (2021)
 - Chen et al., "Evaluating Large Language Models Trained on Code" (2021), for pass@k
 - PyTorch 2.14 documentation; Hugging Face Transformers v5, PEFT and TRL documentation; llama.cpp and Ollama documentation
-- opencode documentation: providers and agents (V1 and V2 configuration, last checked 2026-10-26)
+- opencode documentation: providers and agents. opencode 2.0 (`@opencode/cli`, September 2026) renamed `provider`/`agent` to `providers`/`agents` and moved permissions to an ordered rule list; the lesson and its grader accept both shapes (last checked 2026-10-26)

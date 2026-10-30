@@ -44,6 +44,7 @@ static partial class Curriculum
         .. LlmTransformerSpecs(),
         .. LlmFrontierSpecs(),
         .. LlmSystemsSpecs(),
+        .. LlmCapstoneSpecs(),
     ];
 
     /// <summary>Each lesson's declared prerequisites, in course order (used by the invariant tests).</summary>
