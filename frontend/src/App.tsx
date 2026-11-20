@@ -793,7 +793,7 @@ function App() {
           </div>
         </header>
         {workspace === "learn" ? (
-          <section className="mx-auto flex min-h-[calc(100vh-70px)] w-full max-w-[1600px] flex-col">
+          <section className="flex min-h-[calc(100vh-70px)] w-full flex-col">
             <LessonContent lesson={lesson} />
             {lesson.exercise.kind === "Presentation" ? (
               <PresentationPanel
@@ -2511,7 +2511,7 @@ function LessonBody({ lesson }: { lesson: Lesson }) {
       case "list": {
         const List = block.ordered ? "ol" : "ul";
         return (
-          <List key={index} className={`${block.ordered ? "list-decimal" : "list-disc"} max-w-[75ch] space-y-1.5 pl-5`}>
+          <List key={index} className={`${block.ordered ? "list-decimal" : "list-disc"} space-y-1.5 pl-5`}>
             {block.items.map((item, itemIndex) => (
               <li key={itemIndex}>
                 <LessonInlineText text={item} />
@@ -2522,7 +2522,7 @@ function LessonBody({ lesson }: { lesson: Lesson }) {
       }
       default:
         return (
-          <p key={index} className="max-w-[75ch] whitespace-pre-line">
+          <p key={index} className="whitespace-pre-line">
             <LessonInlineText text={block.text} />
           </p>
         );
@@ -2534,16 +2534,14 @@ function LessonBody({ lesson }: { lesson: Lesson }) {
       {sections.map((section, sectionIndex) => (
         <section
           key={sectionIndex}
-          className="grid gap-x-10 gap-y-3 border-t border-[#2a2438] py-8 first:border-t-0 first:pt-0 lg:grid-cols-[minmax(180px,260px)_minmax(0,1fr)]"
+          className="border-t border-[#2a2438] py-8 first:border-t-0 first:pt-0"
         >
-          {section.heading && section.heading.kind === "heading" ? (
-            <h2 className="lesson-heading font-display text-[20px] font-semibold leading-snug tracking-[-0.3px] text-forest lg:sticky lg:top-24 lg:self-start">
+          {section.heading && section.heading.kind === "heading" && (
+            <h2 className="lesson-heading mb-4 text-left font-display text-[22px] font-semibold leading-snug tracking-[-0.3px] text-forest">
               <LessonInlineText text={section.heading.text} />
             </h2>
-          ) : (
-            <span className="hidden lg:block" aria-hidden="true" />
           )}
-          <div className="min-w-0 space-y-4">
+          <div className="min-w-0 space-y-4 text-left">
             {section.items.map(({ block, index }) => renderBlock(block, index))}
           </div>
         </section>
@@ -2572,7 +2570,7 @@ function LessonContent({ lesson }: { lesson: Lesson }) {
               {lesson.title}
             </h1>
           </div>
-          <p className="m-0 max-w-[60ch] font-display text-[18px] leading-relaxed text-[#48524b]">
+          <p className="m-0 font-display text-[18px] leading-relaxed text-[#48524b]">
             {lesson.subtitle}
           </p>
         </div>
