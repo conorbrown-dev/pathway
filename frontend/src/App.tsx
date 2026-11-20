@@ -793,7 +793,7 @@ function App() {
           </div>
         </header>
         {workspace === "learn" ? (
-          <section className="mx-auto grid min-h-[calc(100vh-70px)] max-w-[1600px] grid-cols-1 lg:grid-cols-[48%_52%]">
+          <section className="mx-auto flex min-h-[calc(100vh-70px)] w-full max-w-[1600px] flex-col">
             <LessonContent lesson={lesson} />
             {lesson.exercise.kind === "Presentation" ? (
               <PresentationPanel
@@ -803,7 +803,7 @@ function App() {
                 onNext={() => lesson.nextSlug && loadLesson(lesson.nextSlug)}
               />
             ) : (
-              <div className="min-w-0">
+              <div className="min-w-0 w-full">
               <ExercisePanel
                 lesson={lesson}
                 answer={answer}
@@ -2462,57 +2462,92 @@ function LessonInlineText({ text }: { text: string }) {
   );
 }
 
+type LessonBlock = ReturnType<typeof parseLessonBody>[number];
+
 function LessonBody({ lesson }: { lesson: Lesson }) {
   const blocks = useMemo(() => parseLessonBody(lesson.body), [lesson.body]);
+  // Group blocks into sections that each start at an h2, so the material can be
+  // laid out as a full-width "heading | content" grid that stays easy to scan.
+  const sections = useMemo(() => {
+    const groups: { heading: LessonBlock | null; items: { block: LessonBlock; index: number }[] }[] = [];
+    blocks.forEach((block, index) => {
+      if (block.kind === "heading" && block.level === 2) {
+        groups.push({ heading: block, items: [] });
+      } else {
+        if (groups.length === 0) groups.push({ heading: null, items: [] });
+        groups[groups.length - 1].items.push({ block, index });
+      }
+    });
+    return groups;
+  }, [blocks]);
+
+  const renderBlock = (block: LessonBlock, index: number) => {
+    switch (block.kind) {
+      case "heading": {
+        const Heading = `h${block.level}` as "h2" | "h3" | "h4";
+        const size = block.level === 3 ? "text-[17px]" : "text-[14px]";
+        return (
+          <Heading key={index} className={`${size} lesson-heading pt-3 font-display font-semibold tracking-[-0.2px] text-forest`}>
+            <LessonInlineText text={block.text} />
+          </Heading>
+        );
+      }
+      case "code": {
+        const language =
+          (block.language && fenceLanguages[block.language]) || snippetLanguage(lesson, block.code);
+        return (
+          <div key={index} className="overflow-hidden rounded-md bg-[#252b28] shadow-sm">
+            <div className="bg-[#303735] px-4 py-2 font-mono text-[10px] text-[#bbc4bb]">
+              {snippetLanguageLabel[language]}
+            </div>
+            <HighlightedCode
+              code={block.code}
+              language={language}
+              className="syntax-code m-0 overflow-auto p-4 font-mono text-xs leading-6 text-[#dce6de]"
+            />
+          </div>
+        );
+      }
+      case "list": {
+        const List = block.ordered ? "ol" : "ul";
+        return (
+          <List key={index} className={`${block.ordered ? "list-decimal" : "list-disc"} max-w-[75ch] space-y-1.5 pl-5`}>
+            {block.items.map((item, itemIndex) => (
+              <li key={itemIndex}>
+                <LessonInlineText text={item} />
+              </li>
+            ))}
+          </List>
+        );
+      }
+      default:
+        return (
+          <p key={index} className="max-w-[75ch] whitespace-pre-line">
+            <LessonInlineText text={block.text} />
+          </p>
+        );
+    }
+  };
+
   return (
-    <div className="lesson-body my-6 space-y-4 text-sm leading-relaxed text-[#454d47]">
-      {blocks.map((block, index) => {
-        switch (block.kind) {
-          case "heading": {
-            const Heading = `h${block.level}` as "h2" | "h3" | "h4";
-            const size = block.level === 2 ? "text-[19px]" : block.level === 3 ? "text-[16px]" : "text-[14px]";
-            return (
-              <Heading key={index} className={`${size} lesson-heading pt-2 font-display font-semibold tracking-[-0.2px] text-forest`}>
-                <LessonInlineText text={block.text} />
-              </Heading>
-            );
-          }
-          case "code": {
-            const language =
-              (block.language && fenceLanguages[block.language]) || snippetLanguage(lesson, block.code);
-            return (
-              <div key={index} className="overflow-hidden rounded-md bg-[#252b28] shadow-sm">
-                <div className="bg-[#303735] px-4 py-2 font-mono text-[10px] text-[#bbc4bb]">
-                  {snippetLanguageLabel[language]}
-                </div>
-                <HighlightedCode
-                  code={block.code}
-                  language={language}
-                  className="syntax-code m-0 overflow-auto p-4 font-mono text-xs leading-6 text-[#dce6de]"
-                />
-              </div>
-            );
-          }
-          case "list": {
-            const List = block.ordered ? "ol" : "ul";
-            return (
-              <List key={index} className={`${block.ordered ? "list-decimal" : "list-disc"} space-y-1.5 pl-5`}>
-                {block.items.map((item, itemIndex) => (
-                  <li key={itemIndex}>
-                    <LessonInlineText text={item} />
-                  </li>
-                ))}
-              </List>
-            );
-          }
-          default:
-            return (
-              <p key={index} className="whitespace-pre-line">
-                <LessonInlineText text={block.text} />
-              </p>
-            );
-        }
-      })}
+    <div className="lesson-body my-8 text-[15px] leading-[1.75] text-[#454d47]">
+      {sections.map((section, sectionIndex) => (
+        <section
+          key={sectionIndex}
+          className="grid gap-x-10 gap-y-3 border-t border-[#2a2438] py-8 first:border-t-0 first:pt-0 lg:grid-cols-[minmax(180px,260px)_minmax(0,1fr)]"
+        >
+          {section.heading && section.heading.kind === "heading" ? (
+            <h2 className="lesson-heading font-display text-[20px] font-semibold leading-snug tracking-[-0.3px] text-forest lg:sticky lg:top-24 lg:self-start">
+              <LessonInlineText text={section.heading.text} />
+            </h2>
+          ) : (
+            <span className="hidden lg:block" aria-hidden="true" />
+          )}
+          <div className="min-w-0 space-y-4">
+            {section.items.map(({ block, index }) => renderBlock(block, index))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -2520,32 +2555,37 @@ function LessonBody({ lesson }: { lesson: Lesson }) {
 function LessonContent({ lesson }: { lesson: Lesson }) {
   const language = snippetLanguage(lesson);
   return (
-    <article className="border-b border-[#e1dfd6] bg-[#fbf9f3] px-6 py-12 sm:px-8 lg:border-b-0 lg:border-r lg:px-[clamp(28px,3.5vw,56px)] lg:py-16">
+    <article className="border-b border-[#e1dfd6] bg-[#fbf9f3] px-6 py-12 sm:px-8 lg:px-[clamp(28px,4vw,72px)] lg:py-16">
       <p className="text-[10px] font-bold tracking-[1.15px] text-[#6e786f]">
         <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-[#e5744d]" />
         {lesson.module.toUpperCase()}{" "}
         <span className="mx-2 text-[#a6ada7]">/</span> LESSON{" "}
         {String(lesson.order).padStart(2, "0")}
       </p>
-      <div className="mb-5 mt-6 flex gap-4">
-        <span className="pt-2 font-display text-[27px] text-[#b6bbb2]">
-          {String(lesson.order).padStart(2, "0")}
-        </span>
-        <h1 className="font-display text-[48px] font-semibold leading-[1.02] tracking-[-2.5px] text-forest sm:text-[56px]">
-          {lesson.title}
-        </h1>
-      </div>
-      <p className="mb-7 max-w-[385px] font-display text-[18px] leading-relaxed text-[#48524b]">
-        {lesson.subtitle}
-      </p>
-      <div className="flex gap-3 rounded-r-md border-l-[3px] border-[#54a987] bg-[#e5f2eb] px-4 py-3.5 text-[13px] leading-relaxed text-[#2e453a]">
-        <Sparkles className="mt-0.5 shrink-0 text-[#278164]" size={15} />
-        <p className="m-0">
-          <strong>Key idea:</strong> {lesson.concept}
-        </p>
+      <div className="mb-10 mt-6 grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,1fr)] lg:items-end">
+        <div>
+          <div className="mb-5 flex gap-4">
+            <span className="pt-2 font-display text-[27px] text-[#b6bbb2]">
+              {String(lesson.order).padStart(2, "0")}
+            </span>
+            <h1 className="font-display text-[44px] font-semibold leading-[1.04] tracking-[-2px] text-forest sm:text-[56px]">
+              {lesson.title}
+            </h1>
+          </div>
+          <p className="m-0 max-w-[60ch] font-display text-[18px] leading-relaxed text-[#48524b]">
+            {lesson.subtitle}
+          </p>
+        </div>
+        <div className="flex gap-3 rounded-r-md border-l-[3px] border-[#54a987] bg-[#e5f2eb] px-4 py-3.5 text-[13px] leading-relaxed text-[#2e453a]">
+          <Sparkles className="mt-0.5 shrink-0 text-[#278164]" size={15} />
+          <p className="m-0">
+            <strong>Key idea:</strong> {lesson.concept}
+          </p>
+        </div>
       </div>
       <LessonBody lesson={lesson} />
       {["ee-ac-fundamentals", "ee-wave-properties", "ee-wave-phase", "ee-phasors", "math-unit-circle"].includes(lesson.slug) && <WavePlayground phasors={lesson.slug === "ee-phasors"} />}
+      <p className="mb-3 mt-2 text-[10px] font-bold tracking-[1.2px] text-[#6e786f]">WORKED EXAMPLE</p>
       <div className="overflow-hidden rounded-md bg-[#252b28] shadow-sm">
         <div className="bg-[#303735] px-4 py-2 font-mono text-[10px] text-[#bbc4bb]">
           {snippetLanguageLabel[language]}
@@ -2852,7 +2892,7 @@ function PresentationPanel({
   onNext: () => void;
 }) {
   return (
-    <section className="bg-panel px-6 py-10 sm:px-8 lg:px-[clamp(24px,3vw,48px)] lg:py-[42px]">
+    <section className="border-t border-[#2a2438] bg-panel px-6 py-10 sm:px-8 lg:px-[clamp(28px,4vw,72px)] lg:py-[48px]">
       <p className="text-[10px] font-bold tracking-[1.2px] text-[#5d886f]">
         LESSON NOTES
       </p>
@@ -2980,7 +3020,7 @@ function ExercisePanel({
         ? "Shell"
         : "C#";
   return (
-    <section className="bg-panel px-7 py-10 sm:px-[9vw] lg:px-[clamp(27px,4vw,58px)] lg:py-[42px]">
+    <section className="border-t border-[#2a2438] bg-panel px-6 py-10 sm:px-8 lg:px-[clamp(28px,4vw,72px)] lg:py-[48px]">
       <p className="text-[10px] font-bold tracking-[1.2px] text-[#5d886f]">
         YOUR TURN
       </p>
